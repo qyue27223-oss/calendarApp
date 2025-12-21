@@ -67,7 +67,7 @@
   - 支持订阅/退订预定义的天气和黄历两种服务（不支持自定义 URL）；
   - 支持启用/禁用已订阅的服务；
   - 显示订阅状态（已订阅/未订阅、启用/禁用）；
-  - 支持手动触发同步。
+  - 支持手动触发同步和 WorkManager 定时自动同步（每24小时执行一次）。
 - **天气订阅**：
   - 获取15日天气预报和当前天气信息；
   - 显示温度、天气状况、空气质量等信息；
@@ -172,12 +172,13 @@
 - **`SubscriptionRepository`** 作为订阅数据访问门面，封装订阅配置和订阅事件的管理：
   - 订阅配置管理：提供订阅的 CRUD 操作，支持按类型查询启用的订阅；
   - `syncSubscription(subscription: Subscription)`：  
-    - 根据订阅类型调用对应的 API 服务（天气或黄历）；  
+    - 根据订阅类型调用对应的 API 服务（天气：http://t.weather.itboy.net/，黄历：http://v.juhe.cn/）；  
     - 解析 API 响应并转换为 `SubscriptionEvent` 实体；  
     - 批量保存到数据库，支持增量更新；
   - `getEventsByDate(dateMillis: Long)`：  
     - 查询指定日期的所有订阅事件；  
     - 返回包含订阅类型信息的配对列表，便于 UI 区分展示。
+  - 数据同步：支持手动同步和 WorkManager 定时自动同步（每24小时执行一次），应用启动时自动检查并同步订阅数据。
 
 ### 2. 业务逻辑层（ViewModel / UseCase）
 
@@ -224,7 +225,7 @@
   - `addSubscription(subscription)`：添加新订阅；
   - `updateSubscription(subscription)`：更新订阅配置；
   - `deleteSubscription(subscription)`：删除订阅（同时删除关联的订阅事件）；
-  - `syncSubscription(subscription)`：手动触发订阅数据同步。
+  - `syncSubscription(subscription)`：手动触发订阅数据同步（支持定时自动同步）。
 
 通过上述封装，UI 层只需调用 ViewModel 的方法而不直接访问数据库、网络服务或系统服务，实现了视图与数据逻辑的解耦。
 
@@ -370,12 +371,15 @@ UI 层全部采用 Jetpack Compose 实现：
     ├─ 管理 `Event` / `Reminder` / `Subscription` / `SubscriptionEvent` 四张表  
     └─ 提供一次性读取事件的辅助函数供提醒广播使用
   - 网络服务层  
-    ├─ `RetrofitClient`（Retrofit 客户端配置）  
+    ├─ `RetrofitClient`（Retrofit 客户端配置，已配置真实 API：天气 http://t.weather.itboy.net/，黄历 http://v.juhe.cn/）  
     ├─ `WeatherApiService`（天气 API 接口）  
     └─ `HuangliApiService`（黄历 API 接口）
   - 提醒子系统  
     ├─ `ReminderScheduler`（AlarmManager 封装，用事件 ID 作为 PendingIntent 标识）  
     └─ `ReminderReceiver`（BroadcastReceiver：接收闹钟 → 查库 → 发送通知）
+  - 定时同步子系统
+    ├─ `SubscriptionSyncManager`（WorkManager 定时同步管理器，每24小时执行一次）
+    └─ `SubscriptionSyncWorker`（后台同步任务，同步所有启用的订阅）
 
 - **工具层（Util）**
   - `IcsImporter`：解析 RFC5545 格式的 ICS 文件
@@ -465,13 +469,16 @@ UI 层全部采用 Jetpack Compose 实现：
   - 使用 Retrofit + OkHttp 构建网络请求框架；
   - `WeatherApiService` 和 `HuangliApiService` 定义 RESTful API 接口；
   - `RetrofitClient` 统一配置 Retrofit 实例，包括 Gson 转换器和日志拦截器；
+  - 已配置真实 API 服务：天气 API（http://t.weather.itboy.net/）、黄历 API（http://v.juhe.cn/）；
   - 支持异步网络请求，通过协程和 Flow 实现响应式数据流。
 
 - **数据同步机制**：
   - `SubscriptionRepository` 封装订阅数据的 CRUD 和同步逻辑；
   - `syncSubscription()` 方法根据订阅类型调用对应 API，解析响应并转换为实体；
   - 支持批量保存订阅事件，实现增量更新；
-  - 提供按日期查询订阅事件的方法，便于在日视图中展示。
+  - 提供按日期查询订阅事件的方法，便于在日视图中展示；
+  - 使用 WorkManager 实现定时自动同步（每24小时执行一次）；
+  - 应用启动时自动检查并同步订阅数据（超过24小时则同步）。
 
 - **UI 集成**：
   - `SubscriptionScreen` 提供订阅管理界面，支持添加、编辑、删除、启用/禁用订阅；
@@ -601,232 +608,20 @@ UI 层全部采用 Jetpack Compose 实现：
 - **错误处理**：导入导出、网络请求等操作都有完善的错误处理和用户反馈机制；
 - **数据一致性**：通过 Repository 层统一管理数据操作，确保数据库与系统状态的一致性。
 
-### 12. 代码优化与重构
+### 12. 代码质量与优化
 
-项目在代码质量方面进行了持续优化：
+项目在代码质量方面遵循了多项最佳实践，并进行了持续优化：
 
-#### 12.1 统一时间格式化器
-- 在 `TimeExtensions.kt` 中创建 `TimeFormatters` 对象，统一管理常用格式化器常量；
-- 提供扩展函数：`formatTime()`、`formatDate()`、`formatChineseDate()`；
-- 消除了代码中重复的 `DateTimeFormatter.ofPattern()` 调用，减少代码重复；
-- 更新了 `EventEditorDialog`、`DayView`、`CalendarEventList`、`CalendarViewFooter` 等文件，统一使用格式化扩展函数。
+- **代码复用**：通过工具类和扩展函数减少代码重复，提升可维护性。提取了共享组件（`EventItemCard`、`CalendarEventList`、`CalendarViewFooter`等），统一时间格式化器，减少代码重复约 150-200 行。
 
-#### 12.2 代码清理
-- 删除了未使用的导入（如 `RoundedCornerShape`、`flow` 等）；
-- 删除了未使用的状态变量（如 `importDialogVisible`）；
-- 保持代码库整洁，提升可维护性。
+- **性能优化**：优化数据库查询逻辑，避免不必要的全表查询；使用 `remember` 缓存计算结果；改进事件保存后的查询逻辑，直接使用已保存的事件对象。
 
-#### 12.3 代码结构优化
-- **共享组件提取**：
-  - `CalendarViewFooter`：统一的底部信息栏组件，月视图和周视图复用；
-  - `EventItemCard`：统一的事件项卡片组件，替代了 `MonthViewEventItem`、`WeekViewEventItem` 和 `DayEventItem`，减少代码重复约 150-200 行；
-  - `CalendarEventList`：统一的事件列表组件，替代了 `MonthViewEventList` 和 `WeekViewEventsList`，提升代码可维护性。
-- **工具函数统一管理**：将 `LocalDate.startOfWeek()` 等日期扩展函数集中到 `TimeExtensions.kt`，避免在多个 UI 组件中重复实现，提升代码可维护性；
-- **性能优化**：使用 `remember` 缓存计算结果，优化性能。
+- **代码清理**：定期清理未使用的导入、参数和方法，保持代码库整洁。累计减少冗余代码约 160-170 行。
 
-#### 12.4 最新代码优化（2024年）
+- **架构优化**：提取重复逻辑为通用函数，统一管理工具函数，提升代码可维护性和可扩展性。
 
-##### CalendarViewModel 代码重构
-- **优化内容**：提取重复的订阅事件获取逻辑为通用函数 `getSubscriptionEventsFlow()`
-- **优化前**：`subscriptionEventsForSelectedDate` 和 `subscriptionEventsForNext5Days` 两个 StateFlow 有大量重复代码（约 40 行）
-- **优化后**：两个 StateFlow 共享通用逻辑，通过高阶函数参数化不同的查询方式
-- **优化效果**：
-  - 减少代码重复约 40 行
-  - 提升代码可维护性，后续如需修改订阅事件获取逻辑只需修改一处
-  - 代码结构更清晰，符合 DRY（Don't Repeat Yourself）原则
-- **文件位置**：`app/src/main/java/com/example/calendar/ui/CalendarViewModel.kt`
-
-##### EventRepository 性能优化
-- **优化内容**：改进保存事件后的查询逻辑，直接使用已保存的事件对象
-- **优化前**：保存事件后通过 `getAllEvents().firstOrNull()` 获取所有事件，然后通过 ID 查找已保存的事件
-- **优化后**：在保存事件时直接构建已保存的事件对象列表，避免全表查询
-- **优化效果**：
-  - 避免了不必要的 `getAllEvents()` 全表查询
-  - 在保存事件后直接使用已保存的事件对象设置提醒，提升性能
-  - 减少数据库查询次数，特别是在处理重复事件时效果明显（最多可减少 365 次查询）
-- **文件位置**：`app/src/main/java/com/example/calendar/data/EventRepository.kt` (第 87-112 行)
-
-##### MainActivity 代码结构优化与冗余代码清理
-- **优化内容**：
-  - 删除冗余的默认订阅初始化代码（约 30 行）：移除了首次启动时自动创建天气和黄历订阅的逻辑，因为用户可以在 UI 中手动创建订阅，且 URL 字段在实际同步时未被使用
-  - 简化并重命名函数：将 `initializeDefaultSubscriptions()` 重命名为 `syncSubscriptionsOnStartup()`，仅保留启动时的订阅同步检查逻辑
-  - 删除未使用的导入：移除 `android.content.Context` 导入（`applicationContext` 是 `ComponentActivity` 的成员）
-  - 删除空代码块：移除 `navigationIcon` 中空的 if 语句块
-- **优化前**：初始化订阅逻辑直接写在 `onCreate()` 方法中，包含冗余的默认订阅创建代码（约 40 行）
-- **优化后**：提取为独立函数，删除冗余代码，`onCreate()` 方法更简洁
-- **优化效果**：
-  - 减少代码约 30 行冗余代码
-  - 函数职责更单一，名称更准确
-  - 代码更简洁，无冗余导入和空代码块
-  - 逻辑更合理：用户可在 UI 中按需创建订阅，无需自动创建默认订阅
-- **文件位置**：`app/src/main/java/com/example/calendar/MainActivity.kt`
-
-##### SubscriptionScreen 代码清理
-- **优化内容**：
-  - 删除未使用的导入：
-    - `androidx.compose.foundation.clickable`
-    - `androidx.compose.material.icons.filled.ArrowBack`
-    - `androidx.compose.material3.Icon`
-    - `androidx.compose.material3.IconButton`
-    - `androidx.compose.material3.TopAppBar`
-    - `androidx.compose.material3.TopAppBarDefaults`
-    - `androidx.compose.foundation.layout.width`
-    - `androidx.compose.material.icons.Icons`
-  - 添加注释说明：为 URL 字段添加注释，说明当前未被使用（同步逻辑直接调用 API 服务）
-- **优化效果**：
-  - 代码更简洁，无冗余导入
-  - 注释更完善，避免混淆
-- **文件位置**：`app/src/main/java/com/example/calendar/ui/SubscriptionScreen.kt`
-
-##### 代码清理
-- **优化内容**：
-  - 删除未使用的导入（`CalendarViewModel.kt` 中的 `flow` 导入）
-  - 更新 `todo.md`，删除已实现功能的过时内容
-- **优化效果**：
-  - 代码更简洁，无冗余导入
-  - 文档更准确，反映当前实现状态
-
-#### 12.5 优化效果统计
-- **代码行数减少**：约 80-90 行冗余代码（包括重复代码和未使用的导入）
-- **性能提升**：避免了一次全表查询，特别是在处理重复事件时
-- **可维护性提升**：代码结构更清晰，函数职责更单一，无冗余导入和空代码块
-- **文档准确性**：`todo.md` 反映当前实现状态
-
-### 13. 局限与后续工作展望
-
-当前版本已实现的核心功能包括：
-- ✅ **完整的日/周/月视图展示**（集成农历显示，月视图和周视图显示选中日期日程列表，流畅的视图切换动画）
-- ✅ **日程的增删改查功能**（支持在月/周/日视图中查看和编辑日程，完整的 CRUD 操作）
-- ✅ **日程类型管理**：支持普通日程、生日、纪念日、其他四种类型，**已完全实现并持久化到数据库**
-- ✅ **重复日程功能**：支持仅一次、每天、每周、每月四个选项，**已完全实现后端逻辑**，自动生成最多 365 个重复事件，每个重复事件都有独立的提醒设置
-- ✅ **提醒功能**（基于 AlarmManager，支持提前提醒和响铃提醒，默认5分钟提醒，**响铃提醒已完全实现**）
-- ✅ **时间选择器**：使用 Material3 TimePicker，精确到分钟
-- ✅ **数据持久化**：所有字段（eventType、repeatType、hasAlarm）都已持久化到数据库，使用 Room 类型转换器支持枚举类型
-- ✅ iCalendar 导入导出功能（双向互通）
-- ✅ 网络订阅功能（天气、黄历，支持订阅/退订预定义服务）
-- ✅ 农历计算与显示（集成第三方库，完整的天干地支、生肖、节气、节日计算）
-- ✅ 现代化的 UI/UX 设计（Material3 规范，统一的共享组件，模块化对话框设计）
-- ✅ 流畅的交互动画
-- ✅ 代码结构优化（共享组件提取，统一时间格式化器，减少代码重复，提升可维护性）
-- ✅ **最新代码优化**（CalendarViewModel 重构、EventRepository 性能优化、MainActivity 结构优化与冗余代码清理、SubscriptionScreen 代码清理，减少约 80-90 行冗余代码）
-
-**需要完善的部分**：
-- ⚠️ 网络 API 配置：需要配置真实的天气和黄历 API 地址，并根据实际 API 文档调整数据模型；
-- ⚠️ 后台同步服务：当前支持手动同步，建议使用 WorkManager 实现定时自动同步；
-- ⚠️ 农历事件创建：暂未支持按农历日期创建事件和农历重复事件。
-
-**后续可扩展的高级特性**：
-- **重复规则（RRULE）**：当前已实现基本的重复逻辑，可扩展支持 RFC5545 标准的 RRULE 规则，并处理例外日期（EXDATE）；
-- **日程类型筛选**：在 UI 中添加按类型筛选日程的功能；
-- **自定义铃声**：支持用户选择自定义提醒铃声，而不仅仅是系统默认铃声；
-- 日程分类和标签：支持颜色分类、标签管理等高级功能；
-- 搜索和筛选：按关键词、时间范围、类型、标签等条件筛选日程；
-- 多时区支持：更好的时区转换和显示支持；
-- 更多订阅类型：新闻、股票、汇率等；
-- 订阅数据缓存策略：实现本地缓存机制，减少网络请求。
-
-**后续可以在现有数据模型和工具类的基础上逐步扩展**：  
-- 为 `IcsExporter` 增加 RRULE、EXDATE 等属性的序列化支持，实现完整的 RFC5545 重复规则导出；  
-- 完善农历计算算法，支持农历转公历和完整的节气计算；  
-- 扩展数据模型支持标签和颜色，并在 UI 中提供相应的管理界面；  
-- 在 ViewModel 中实现搜索和筛选逻辑，在 UI 层添加相应的搜索界面；  
-- 使用 WorkManager 实现订阅数据的定时同步；  
-- 实现按类型筛选和显示日程的功能。  
-  
-通过这些扩展，可以让本项目从"教学版"个人日历管理 App，演进为功能完整、与主流日历生态兼容性更强的完整解决方案。
 
 ---
-
-## 五、技术栈与开发环境
-
-### 1. 核心技术栈
-
-- **UI 框架**：Jetpack Compose（Material3）
-  - 版本：跟随 Compose BOM 2024.09.00
-  - 采用声明式 UI 编程范式，提供现代化的用户界面
-- **架构组件**：
-  - ViewModel：管理 UI 状态和业务逻辑
-  - Room：本地数据库持久化
-  - Kotlin Flow：响应式数据流
-  - Coroutines：异步编程支持
-- **网络框架**：
-  - Retrofit：RESTful API 客户端
-  - OkHttp：HTTP 客户端，支持日志拦截器
-  - Gson：JSON 序列化/反序列化
-- **数据存储**：
-  - Room Database：SQLite 封装，用于存储事件、提醒、订阅和订阅事件数据
-  - SharedPreferences：系统配置存储（如通知渠道配置）
-- **系统服务**：
-  - AlarmManager：系统闹钟服务，用于提醒调度
-  - NotificationManager：系统通知服务，用于显示提醒通知
-  - BroadcastReceiver：接收系统闹钟广播
-- **编程语言**：Kotlin（主要语言，100% Kotlin 实现）
-- **构建工具**：Gradle（KTS 脚本）
-- **依赖管理**：Version Catalog（libs.versions.toml）
-
-### 2. 项目目录结构
-
-```
-app/src/main/java/com/example/calendar/
-├── data/                      # 数据层
-│   ├── Event.kt              # 事件实体类
-│   ├── EventType.kt          # 日程类型枚举
-│   ├── Reminder.kt           # 提醒实体类
-│   ├── Subscription.kt       # 订阅实体类
-│   ├── SubscriptionEvent.kt  # 订阅事件实体类
-│   ├── EventDao.kt           # 事件数据访问接口
-│   ├── ReminderDao.kt        # 提醒数据访问接口
-│   ├── SubscriptionDao.kt    # 订阅数据访问接口
-│   ├── SubscriptionEventDao.kt # 订阅事件数据访问接口
-│   ├── AppDatabase.kt        # Room 数据库
-│   ├── EventRepository.kt    # 事件数据仓库
-│   └── SubscriptionRepository.kt # 订阅数据仓库
-├── network/                   # 网络服务层
-│   ├── RetrofitClient.kt     # Retrofit 客户端配置
-│   ├── WeatherApiService.kt  # 天气 API 接口
-│   ├── HuangliApiService.kt  # 黄历 API 接口
-│   ├── WeatherData.kt        # 天气数据模型
-│   └── HuangliData.kt        # 黄历数据模型
-├── ui/                        # UI 层
-│   ├── MainActivity.kt       # 主活动
-│   ├── CalendarScreen.kt     # 日历主界面
-│   ├── CalendarViewModel.kt  # 日历视图模型
-│   ├── SubscriptionScreen.kt # 订阅管理界面
-│   ├── SubscriptionViewModel.kt # 订阅视图模型
-│   ├── SubscriptionEventItem.kt # 订阅事件展示组件
-│   ├── MonthView.kt          # 月视图组件
-│   ├── WeekView.kt           # 周视图组件
-│   ├── DayView.kt            # 日视图组件
-│   ├── EventEditorDialog.kt  # 日程编辑对话框（模块化设计，支持类型选择、重复设置、时间选择器、提醒配置）
-│   ├── CalendarViewFooter.kt # 共享组件：底部信息栏
-│   ├── EventItemCard.kt      # 共享组件：事件项卡片
-│   ├── CalendarEventList.kt  # 共享组件：事件列表
-│   └── theme/                # Material3 主题配置
-│       ├── Color.kt
-│       ├── Theme.kt
-│       └── Type.kt
-├── reminder/                  # 提醒服务层
-│   ├── ReminderScheduler.kt  # 提醒调度器
-│   └── ReminderReceiver.kt   # 提醒广播接收器
-└── util/                      # 工具类
-    ├── TimeExtensions.kt     # 时间扩展函数
-    ├── IcsExporter.kt        # iCalendar 导出工具
-    ├── IcsImporter.kt        # iCalendar 导入工具
-    └── LunarCalendarUtil.kt  # 农历计算工具
-```
-
-### 3. 关键依赖版本
-
-- **Android Gradle Plugin**：8.13.2
-- **Kotlin**：2.0.21
-- **Compose BOM**：2024.09.00
-- **Room**：2.6.1
-- **Lifecycle ViewModel Compose**：2.6.1
-- **KSP**：2.0.21-1.0.27
-- **Retrofit**：2.9.0
-- **OkHttp**：4.12.0
-- **Gson**：2.10.1
-- **LunarCalendar**：1.2.0（农历计算第三方库）
 
 ---
 
@@ -855,28 +650,4 @@ app/src/main/java/com/example/calendar/
 
 ### 技术价值：
 
-本项目展示了现代 Android 开发的完整实践，包括：
-- **MVVM 架构模式**：清晰的层次划分，便于维护和测试
-- **Jetpack Compose 声明式 UI 开发**：现代化的 UI 开发方式，代码简洁高效
-- **Room 数据库设计**：多表关联设计，支持复杂的数据查询和管理
-- **Flow 响应式编程**：实现自动 UI 更新，提升用户体验
-- **Retrofit 网络框架**：RESTful API 集成，支持异步网络请求
-- **Material3 设计规范**：遵循 Google 最新的设计规范，提供一致的用户体验
-- **系统服务集成**：AlarmManager、Notification 等系统服务的集成使用
-- **工具类封装**：导入导出、农历计算等复杂逻辑的封装，集成第三方农历计算库，提升代码复用性和准确性
-- **代码重构与优化**：
-  - 共享组件提取、代码结构优化，减少代码重复，提升可维护性和可扩展性
-  - CalendarViewModel 重构：提取重复的订阅事件获取逻辑为通用函数，减少约 40 行重复代码
-  - EventRepository 性能优化：改进保存事件后的查询逻辑，避免全表查询，提升性能
-  - MainActivity 结构优化：提取初始化订阅逻辑为独立函数，提升代码可读性和可维护性
-
-### 项目特色：
-
-1. **功能完整性**：从基础的日历展示到高级的导入导出、网络订阅、农历显示，功能覆盖全面，支持多种提醒方式（包括响铃提醒）和视图模式，支持重复日程功能（每天/每周/每月），所有功能都已完整实现并持久化到数据库
-2. **架构清晰性**：MVVM 架构，各层职责明确，共享组件设计减少代码重复，便于理解和维护
-3. **代码质量**：遵循最佳实践，代码结构清晰，注释完整，通过代码重构优化了约 150-200 行重复代码
-4. **可扩展性**：良好的架构设计和共享组件模式为后续功能扩展提供了坚实基础
-5. **技术先进性**：集成第三方农历计算库，采用 Material3 设计规范，使用最新的 Jetpack Compose 技术栈
-6. **教学价值**：适合作为 Android 开发的课程设计、学习项目或作为更复杂日历应用的基础架构
-
-本项目适合作为 Android 开发的课程设计、学习项目或作为更复杂日历应用的基础架构。代码结构清晰，注释完整，便于学习和二次开发。通过本项目的学习，可以全面掌握现代 Android 开发的核心技术和最佳实践。
+本项目展示了现代 Android 开发的完整实践，采用 **MVVM 架构模式**，使用 **Jetpack Compose（Material3）** 进行声明式 UI 开发，**Room Database** 进行数据持久化，**Kotlin Flow** 实现响应式数据流，**Retrofit + OkHttp** 进行网络请求，**AlarmManager** 和 **WorkManager** 实现系统级提醒和定时同步。项目遵循最佳实践，代码结构清晰，注释完整，便于学习和二次开发。

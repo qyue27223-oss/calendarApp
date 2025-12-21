@@ -1,5 +1,6 @@
 package com.example.calendar.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.calendar.data.Event
@@ -110,6 +111,7 @@ class CalendarViewModel(
                 uiState
             ) { subscriptions: List<com.example.calendar.data.Subscription>, state: CalendarUiState ->
                 val enabledSubscriptions = subscriptions.filter { it.enabled }
+                Log.d("CalendarViewModel", "启用的订阅数量: ${enabledSubscriptions.size}, 选中日期: ${state.selectedDate}")
                 if (enabledSubscriptions.isEmpty()) {
                     flowOf<List<Pair<SubscriptionEvent, SubscriptionType>>>(emptyList())
                 } else {
@@ -118,11 +120,14 @@ class CalendarViewModel(
                         enabledSubscriptions.map { subscription ->
                             eventFlowGetter(subscription)
                                 .map { events ->
+                                    Log.d("CalendarViewModel", "订阅 ${subscription.type} (id=${subscription.id}) 查询到 ${events.size} 个事件")
                                     events.map { event -> Pair(event, subscription.type) }
                                 }
                         }
                     combine(eventFlows) { arrays: Array<List<Pair<SubscriptionEvent, SubscriptionType>>> ->
-                        arrays.flatMap { it }
+                        val result = arrays.flatMap { it }
+                        Log.d("CalendarViewModel", "合并后共有 ${result.size} 个订阅事件")
+                        result
                     }
                 }
             }.flatMapLatest { it }

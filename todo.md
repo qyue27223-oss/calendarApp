@@ -55,17 +55,15 @@
     - 导出所有事件
     - 支持保存到文件和复制到剪贴板
 
-#### ⚠️ 2. 网络订阅功能
-- **实现状态**：⚠️ **基础架构已完成，部分功能待完善**
-- **已完成部分**：
+#### ✅ 2. 网络订阅功能
+- **实现状态**：✅ **已完成**
+- **实现细节**：
   - ✅ 数据模型：Subscription 和 SubscriptionEvent 实体，支持天气和黄历两种类型
-  - ✅ 网络服务层：Retrofit + OkHttp + Gson，定义了 WeatherApiService 和 HuangliApiService
+  - ✅ 网络服务层：Retrofit + OkHttp + Gson，已配置真实 API（天气：http://t.weather.itboy.net/，黄历：http://v.juhe.cn/）
   - ✅ 订阅管理 UI：SubscriptionScreen 支持添加、编辑、删除、启用/禁用订阅
   - ✅ 订阅事件展示：SubscriptionEventItem 支持天气和黄历两种卡片样式
-  - ✅ 数据同步：支持手动同步订阅数据
-- **待完善部分**：
-  - ⚠️ **API 配置**：当前使用示例 URL，需要配置真实的天气和黄历 API
-  - ⚠️ **定时同步**：未实现 WorkManager 定时自动同步
+  - ✅ 数据同步：支持手动同步和 WorkManager 定时自动同步（每24小时执行一次）
+- **待完善部分**（可选功能）：
   - ⚠️ **15日天气预报展开**：UI 中预留了位置但未实现展开/收起功能
   - ⚠️ **快速订阅按钮**：订阅事件卡片中未添加快速订阅/取消订阅按钮
 
@@ -83,73 +81,6 @@
   - ⚠️ **按农历创建事件**：未实现按农历日期创建事件的功能
   - ⚠️ **农历重复事件**：未支持农历重复事件（如每年农历生日）
 
----
-
-## 最新代码优化（2024年）
-
-### ✅ 已完成的代码优化
-
-#### 1. CalendarViewModel 代码重构
-- **优化内容**：提取重复的订阅事件获取逻辑为通用函数 `getSubscriptionEventsFlow()`
-- **优化效果**：
-  - 减少代码重复约 40 行
-  - `subscriptionEventsForSelectedDate` 和 `subscriptionEventsForNext5Days` 两个 StateFlow 共享通用逻辑
-  - 提升代码可维护性，后续如需修改订阅事件获取逻辑只需修改一处
-- **文件位置**：`app/src/main/java/com/example/calendar/ui/CalendarViewModel.kt`
-
-#### 2. EventRepository 性能优化
-- **优化内容**：改进保存事件后的查询逻辑，直接使用已保存的事件对象
-- **优化效果**：
-  - 避免了不必要的 `getAllEvents()` 全表查询
-  - 在保存事件后直接使用已保存的事件对象设置提醒，提升性能
-  - 减少数据库查询次数，特别是在处理重复事件时效果明显
-- **文件位置**：`app/src/main/java/com/example/calendar/data/EventRepository.kt` (第 87-112 行)
-
-#### 3. MainActivity 代码结构优化与冗余代码清理
-- **优化内容**：
-  - 删除冗余的默认订阅初始化代码（约 30 行）：移除了首次启动时自动创建天气和黄历订阅的逻辑，因为用户可以在 UI 中手动创建订阅，且 URL 字段在实际同步时未被使用
-  - 简化并重命名函数：将 `initializeDefaultSubscriptions()` 重命名为 `syncSubscriptionsOnStartup()`，仅保留启动时的订阅同步检查逻辑
-  - 删除未使用的导入：移除 `android.content.Context` 导入（`applicationContext` 是 `ComponentActivity` 的成员）
-  - 删除空代码块：移除 `navigationIcon` 中空的 if 语句块
-- **优化效果**：
-  - 减少代码约 30 行冗余代码
-  - 函数职责更单一，名称更准确
-  - 代码更简洁，无冗余导入和空代码块
-  - 逻辑更合理：用户可在 UI 中按需创建订阅，无需自动创建默认订阅
-- **文件位置**：`app/src/main/java/com/example/calendar/MainActivity.kt`
-
-#### 4. SubscriptionScreen 代码清理
-- **优化内容**：
-  - 删除未使用的导入：
-    - `androidx.compose.foundation.clickable`
-    - `androidx.compose.material.icons.filled.ArrowBack`
-    - `androidx.compose.material3.Icon`
-    - `androidx.compose.material3.IconButton`
-    - `androidx.compose.material3.TopAppBar`
-    - `androidx.compose.material3.TopAppBarDefaults`
-    - `androidx.compose.foundation.layout.width`
-    - `androidx.compose.material.icons.Icons`
-  - 添加注释说明：为 URL 字段添加注释，说明当前未被使用（同步逻辑直接调用 API 服务）
-- **优化效果**：
-  - 代码更简洁，无冗余导入
-  - 注释更完善，避免混淆
-- **文件位置**：`app/src/main/java/com/example/calendar/ui/SubscriptionScreen.kt`
-
-#### 5. 代码清理
-- **优化内容**：
-  - 删除未使用的导入（`CalendarViewModel.kt` 中的 `flow` 导入）
-  - 更新 `todo.md`，删除已实现功能的过时内容
-- **优化效果**：
-  - 代码更简洁，无冗余导入
-  - 文档更准确，反映当前实现状态
-
-### 优化效果统计
-- **代码行数减少**：约 80-90 行冗余代码（包括重复代码和未使用的导入）
-- **性能提升**：避免了一次全表查询，特别是在处理重复事件时
-- **可维护性提升**：代码结构更清晰，函数职责更单一，无冗余导入和空代码块
-- **文档准确性**：`todo.md` 反映当前实现状态
-
----
 
 ## 需要完善的内容
 
@@ -169,25 +100,6 @@
   - 支持闰月处理
   - 用于实现"按农历日期创建事件"功能
 
-#### 3. 网络 API 配置（高优先级）⚠️
-- **当前状态**：API 服务接口已创建，但使用示例 URL（`http://example.com/weather` 和 `http://example.com/huangli`）
-- **注意**：URL 字段当前未被使用，同步逻辑直接调用 API 服务（`weatherApiService` 和 `huangliApiService`），但字段在数据库中存在，未来可能用到
-- **需要完善**：
-  - 在 `RetrofitClient.kt` 中配置真实的天气 API 地址（推荐：和风天气、OpenWeatherMap、心知天气等）
-  - 在 `RetrofitClient.kt` 中配置真实的黄历 API 地址（推荐：聚合数据、天行数据等）
-  - 根据实际 API 文档调整数据模型（`WeatherData.kt`、`HuangliData.kt`）
-  - 添加 API Key 配置（建议使用 `local.properties` 或环境变量，不要提交到版本控制）
-  - 如需使用 URL 字段，可在 `SubscriptionScreen.kt` 中更新创建订阅时的 URL（第89行）
-
-#### 4. 后台同步服务（中优先级）⚠️
-- **当前状态**：支持手动同步（在订阅管理界面点击"立即同步"），但未实现定时自动同步
-- **需要完善**：
-  - 添加 WorkManager 依赖到 `build.gradle.kts`
-  - 创建 `SubscriptionSyncWorker` 实现定时同步任务
-  - 配置同步策略（如每天凌晨2点自动同步，或每6小时同步一次）
-  - 添加同步状态和进度显示（在订阅管理界面显示"最后同步时间"和"同步中..."状态）
-  - 实现同步失败重试机制（WorkManager 自动重试，或手动重试按钮）
-  - 处理网络不可用情况（延迟同步直到网络可用）
 
 #### 5. 订阅事件展示优化（中优先级）⚠️
 - **当前状态**：基础展示已实现，天气卡片显示当前天气，黄历卡片显示完整信息

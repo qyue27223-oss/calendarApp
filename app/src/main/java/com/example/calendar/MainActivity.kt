@@ -409,7 +409,8 @@ class MainActivity : ComponentActivity() {
                         if (showSubscriptionScreen) {
                             SubscriptionScreen(
                                 viewModel = subscriptionVm,
-                                onBack = { setShowSubscriptionScreen(false) }
+                                onBack = { setShowSubscriptionScreen(false) },
+                                contentPadding = innerPadding
                             )
                         } else {
                             // 日历界面

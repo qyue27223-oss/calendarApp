@@ -1,6 +1,7 @@
 package com.example.calendar.data
 
 import android.content.Context
+import android.util.Log
 import com.example.calendar.network.HuangliApiService
 import com.example.calendar.network.RetrofitClient
 import com.example.calendar.network.WeatherApiService
@@ -8,6 +9,7 @@ import com.example.calendar.util.LocationHelper
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import retrofit2.HttpException
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -24,7 +26,6 @@ class SubscriptionRepository(
     private val context: Context? = null
 ) {
     private val gson = Gson()
-    private val WEATHER_API_KEY = "65e83959cb1c46f0bcf7ce72489075c7"
 
     // ========== 订阅配置管理 ==========
 
@@ -98,24 +99,27 @@ class SubscriptionRepository(
 
     /**
      * 同步天气订阅
-     * 使用和风天气API获取7天天气预报
+     * 使用天气API获取天气预报
      */
     private suspend fun syncWeatherSubscription(subscription: Subscription): SyncResult {
         try {
-            // 获取当前位置
-            val location = context?.let { LocationHelper.getCurrentLocation(it) } 
-                ?: "116.41,39.92" // 默认北京位置
+            Log.d("SubscriptionRepository", "开始同步天气订阅，subscriptionId=${subscription.id}")
             
-            // 调用和风天气API获取7天天气预报
-            val response = weatherApiService.get7DayForecast(
-                key = WEATHER_API_KEY,
-                location = location
-            )
+            // 获取城市代码（邮编）
+            val cityCode = context?.let { LocationHelper.getCityCode(it) } 
+                ?: "101010100" // 默认北京城市代码
+            Log.d("SubscriptionRepository", "使用城市代码: $cityCode")
             
-            if (response.code != "200" || response.daily == null || response.daily.isEmpty()) {
+            // 调用天气API获取天气预报
+            val response = weatherApiService.getWeatherForecast(cityCode)
+            
+            Log.d("SubscriptionRepository", "天气API响应: status=${response.status}, forecast数量=${response.data?.forecast?.size ?: 0}")
+            
+            if (response.status != 200 || response.data?.forecast == null || response.data.forecast.isEmpty()) {
+                Log.w("SubscriptionRepository", "获取天气数据失败: status=${response.status}, forecast=${response.data?.forecast}")
                 return SyncResult(
                     success = false,
-                    message = "获取天气数据失败: code=${response.code}",
+                    message = "获取天气数据失败: status=${response.status}",
                     updatedCount = 0
                 )
             }
@@ -123,9 +127,9 @@ class SubscriptionRepository(
             val events = mutableListOf<SubscriptionEvent>()
             val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
             
-            // 处理7天天气预报
-            response.daily.forEachIndexed { index, forecast ->
-                val dateStr = forecast.fxDate ?: return@forEachIndexed
+            // 处理天气预报（包括今天和未来几天）
+            response.data.forecast.forEachIndexed { index, forecast ->
+                val dateStr = forecast.ymd ?: return@forEachIndexed
                 val date = try {
                     LocalDate.parse(dateStr, dateFormatter)
                 } catch (e: Exception) {
@@ -136,19 +140,30 @@ class SubscriptionRepository(
                 val dateMillis = date.atStartOfDay(ZoneId.systemDefault())
                     .toInstant().toEpochMilli()
                 
-                // 构建天气数据内容
+                // 从high和low字符串中提取温度数值
+                // high格式："高温 3℃"，low格式："低温 -5℃"
+                val tempMax = forecast.high?.replace("高温", "")?.replace("℃", "")?.trim() ?: ""
+                val tempMin = forecast.low?.replace("低温", "")?.replace("℃", "")?.trim() ?: ""
+                
+                // 构建天气数据内容（保持与UI层的兼容性）
                 val content = gson.toJson(mapOf(
                     "type" to if (index == 0) "current" else "forecast",
                     "date" to dateStr,
-                    "fxDate" to forecast.fxDate,
-                    "tempMax" to (forecast.tempMax ?: ""),
-                    "tempMin" to (forecast.tempMin ?: ""),
-                    "textDay" to (forecast.textDay ?: ""),
-                    "textNight" to (forecast.textNight ?: ""),
-                    "windDirDay" to (forecast.windDirDay ?: ""),
-                    "windScaleDay" to (forecast.windScaleDay ?: ""),
-                    "humidity" to (forecast.humidity ?: ""),
-                    "uvIndex" to (forecast.uvIndex ?: "")
+                    "fxDate" to dateStr,  // 使用ymd作为日期
+                    "tempMax" to tempMax,
+                    "tempMin" to tempMin,
+                    "textDay" to (forecast.type ?: ""),  // 使用type作为天气类型
+                    "textNight" to (forecast.type ?: ""),  // 新API没有单独的夜间天气，使用type
+                    "windDirDay" to (forecast.fx ?: ""),  // 风向
+                    "windScaleDay" to (forecast.fl ?: ""),  // 风力等级
+                    "humidity" to (response.data.shidu ?: ""),  // 湿度
+                    "weather" to (forecast.type ?: ""),  // 天气类型（兼容UI层）
+                    "high" to tempMax,  // 兼容UI层
+                    "low" to tempMin,  // 兼容UI层
+                    "week" to (forecast.week ?: ""),  // 星期
+                    "notice" to (forecast.notice ?: ""),  // 提示信息
+                    "quality" to (response.data.quality ?: ""),  // 空气质量
+                    "aqi" to (forecast.aqi?.toString() ?: "")  // 空气质量指数
                 ))
                 
                 events.add(
@@ -162,19 +177,35 @@ class SubscriptionRepository(
 
             // 删除旧的订阅事件并插入新的
             subscriptionEventDao.deleteBySubscriptionId(subscription.id)
-            subscriptionEventDao.insertEvents(events)
+            val insertedIds = subscriptionEventDao.insertEvents(events)
+            Log.d("SubscriptionRepository", "插入了 ${insertedIds.size} 个天气事件")
 
             // 更新订阅的最后更新时间
             subscriptionDao.updateSubscription(
                 subscription.copy(lastUpdateTime = System.currentTimeMillis())
             )
 
+            Log.d("SubscriptionRepository", "天气订阅同步成功，共 ${events.size} 个事件")
             return SyncResult(
                 success = true,
                 message = "同步成功",
                 updatedCount = events.size
             )
+        } catch (e: HttpException) {
+            // HTTP错误，尝试获取响应体
+            val errorBody = try {
+                e.response()?.errorBody()?.string() ?: "无响应体"
+            } catch (ex: Exception) {
+                "无法读取错误响应体: ${ex.message}"
+            }
+            Log.e("SubscriptionRepository", "天气订阅同步失败 - HTTP ${e.code()}: $errorBody", e)
+            return SyncResult(
+                success = false,
+                message = "同步失败: HTTP ${e.code()} - ${errorBody.take(100)}",
+                updatedCount = 0
+            )
         } catch (e: Exception) {
+            Log.e("SubscriptionRepository", "天气订阅同步失败", e)
             return SyncResult(
                 success = false,
                 message = "同步失败: ${e.message}",

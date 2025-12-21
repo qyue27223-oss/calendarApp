@@ -4,5 +4,9 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">v.juhe.cn</domain>
     </domain-config>
+    <!-- 允许对 t.weather.itboy.net 使用明文 HTTP 通信 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">t.weather.itboy.net</domain>
+    </domain-config>
 </network-security-config>
 

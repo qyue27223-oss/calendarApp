@@ -38,26 +38,10 @@ fun CalendarEventList(
     ) {
         // 订阅事件
         subscriptionEvents.forEach { (subscriptionEvent, subscriptionType) ->
-            // 如果是天气订阅的当前天气，获取未来5天的预报事件
-            val forecastEvents = if (subscriptionType == SubscriptionType.WEATHER) {
-                // 从所有订阅事件中筛选出天气类型且为forecast类型的事件（未来5天）
-                allSubscriptionEvents
-                    .filter { 
-                        it.second == SubscriptionType.WEATHER && 
-                        it.first.id != subscriptionEvent.id && // 排除当前事件
-                        it.first.date > subscriptionEvent.date // 只取未来的事件
-                    }
-                    .map { it.first }
-                    .sortedBy { it.date }
-                    .take(5) // 只取前5天
-            } else {
-                emptyList()
-            }
-            
             SubscriptionEventItem(
                 subscriptionEvent = subscriptionEvent,
                 subscriptionType = subscriptionType,
-                forecastEvents = forecastEvents,
+                allSubscriptionEvents = allSubscriptionEvents,
                 modifier = Modifier.padding(vertical = 4.dp)
             )
         }

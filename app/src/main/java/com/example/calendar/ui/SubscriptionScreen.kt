@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,7 +38,8 @@ import com.example.calendar.data.SubscriptionType
 @Composable
 fun SubscriptionScreen(
     viewModel: SubscriptionViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    contentPadding: PaddingValues = PaddingValues(0.dp)
 ) {
     val subscriptions by viewModel.subscriptions.collectAsState()
     
@@ -45,65 +47,69 @@ fun SubscriptionScreen(
     // 注意：确保天气服务在黄历服务之前，以便优先显示
     val availableServices = remember {
         listOf(
-        SubscriptionService(
-            type = SubscriptionType.WEATHER,
-            name = "日历天气卡",
-            description = "提供实时天气信息、预报和天气相关服务",
-            iconColor = Color(0xFF64B5F6), // 浅蓝色
-            iconEmoji = "☁️"
-        ),
-        SubscriptionService(
-            type = SubscriptionType.HUANGLI,
-            name = "黄历",
-            description = "每日宜忌,趋吉避凶",
-            iconColor = Color(0xFFFFB74D), // 黄色
-            iconEmoji = "📖"
+            SubscriptionService(
+                type = SubscriptionType.WEATHER,
+                name = "日历天气卡",
+                description = "提供实时天气信息、预报和天气相关服务",
+                iconColor = Color(0xFF64B5F6), // 浅蓝色
+                iconEmoji = "☁️"
+            ),
+            SubscriptionService(
+                type = SubscriptionType.HUANGLI,
+                name = "黄历",
+                description = "每日宜忌,趋吉避凶",
+                iconColor = Color(0xFFFFB74D), // 黄色
+                iconEmoji = "📖"
+            )
         )
-    )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // 头部已在主Scaffold中处理，这里不再重复显示
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // 显示可订阅的服务列表（始终显示所有可用服务）
-            items(
-                items = availableServices,
-                key = { it.type } // 使用类型作为key确保唯一性
-            ) { service ->
-                val existingSubscription = subscriptions.find { it.type == service.type }
-                SubscriptionServiceCard(
-                    service = service,
-                    isSubscribed = existingSubscription != null,
-                    isEnabled = existingSubscription?.enabled ?: false,
-                    onSubscribe = {
-                        if (existingSubscription == null) {
-                            // 创建新订阅
-                            viewModel.insertSubscription(
-                                Subscription(
-                                    type = service.type,
-                                    name = service.name,
-                                    // 注意：url 字段当前未被使用，同步逻辑直接调用 API 服务
-                                    url = "http://example.com/${service.type.name.lowercase()}",
-                                    enabled = true
-                                )
+    // 头部已在主Scaffold中处理，这里不再重复显示
+    // 合并传入的 contentPadding（包含顶部导航栏高度）和内容边距
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            top = contentPadding.calculateTopPadding() + 16.dp,
+            start = 16.dp,
+            end = 16.dp,
+            bottom = 16.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 显示可订阅的服务列表（始终显示所有可用服务）
+        items(
+            items = availableServices,
+            key = { it.type } // 使用类型作为key确保唯一性
+        ) { service ->
+            val existingSubscription = subscriptions.find { it.type == service.type }
+            SubscriptionServiceCard(
+                service = service,
+                isSubscribed = existingSubscription != null,
+                isEnabled = existingSubscription?.enabled ?: false,
+                onSubscribe = {
+                    if (existingSubscription == null) {
+                        // 创建新订阅
+                        viewModel.insertSubscription(
+                            Subscription(
+                                type = service.type,
+                                name = service.name,
+                                // 注意：url 字段当前未被使用，同步逻辑直接调用 API 服务
+                                url = "http://example.com/${service.type.name.lowercase()}",
+                                enabled = true
                             )
-                        } else {
-                            // 启用订阅
-                            viewModel.updateSubscription(existingSubscription.copy(enabled = true))
-                        }
-                    },
-                    onUnsubscribe = {
-                        existingSubscription?.let {
-                            // 禁用订阅（不删除，只是禁用）
-                            viewModel.updateSubscription(it.copy(enabled = false))
-                        }
+                        )
+                    } else {
+                        // 启用订阅
+                        viewModel.updateSubscription(existingSubscription.copy(enabled = true))
                     }
-                )
-            }
+                },
+                onUnsubscribe = {
+                    existingSubscription?.let {
+                        // 禁用订阅（不删除，只是禁用）
+                        viewModel.updateSubscription(it.copy(enabled = false))
+                    }
+                }
+            )
         }
     }
 }
