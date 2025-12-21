@@ -85,7 +85,7 @@ object IcsImporter {
         var dtEnd: Long? = null
         var created: Long? = null
         var lastModified: Long? = null
-        var timezone: String = "Asia/Shanghai"
+        var timezone: String = java.time.ZoneId.systemDefault().id
 
         for (line in lines) {
             val colonIndex = line.indexOf(':')

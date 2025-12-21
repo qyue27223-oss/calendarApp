@@ -1,7 +1,6 @@
 package com.example.calendar.data
 
 import android.content.Context
-import android.util.Log
 import com.example.calendar.network.HuangliApiService
 import com.example.calendar.network.RetrofitClient
 import com.example.calendar.network.WeatherApiService
@@ -103,23 +102,17 @@ class SubscriptionRepository(
      */
     private suspend fun syncWeatherSubscription(subscription: Subscription): SyncResult {
         try {
-            Log.d("SubscriptionRepository", "开始同步天气订阅，subscriptionId=${subscription.id}")
-            
             // 获取城市代码（邮编）- 使用同步方法
             val cityCode = if (context != null) {
                 LocationHelper.getCityCode(context)
             } else {
                 "101010100" // 默认北京城市代码
             }
-            Log.d("SubscriptionRepository", "使用城市代码: $cityCode")
             
             // 调用天气API获取天气预报
             val response = weatherApiService.getWeatherForecast(cityCode)
             
-            Log.d("SubscriptionRepository", "天气API响应: status=${response.status}, forecast数量=${response.data?.forecast?.size ?: 0}")
-            
             if (response.status != 200 || response.data?.forecast == null || response.data.forecast.isEmpty()) {
-                Log.w("SubscriptionRepository", "获取天气数据失败: status=${response.status}, forecast=${response.data?.forecast}")
                 return SyncResult(
                     success = false,
                     message = "获取天气数据失败: status=${response.status}",
@@ -180,15 +173,12 @@ class SubscriptionRepository(
 
             // 删除旧的订阅事件并插入新的
             subscriptionEventDao.deleteBySubscriptionId(subscription.id)
-            val insertedIds = subscriptionEventDao.insertEvents(events)
-            Log.d("SubscriptionRepository", "插入了 ${insertedIds.size} 个天气事件")
+            subscriptionEventDao.insertEvents(events)
 
             // 更新订阅的最后更新时间
             subscriptionDao.updateSubscription(
                 subscription.copy(lastUpdateTime = System.currentTimeMillis())
             )
-
-            Log.d("SubscriptionRepository", "天气订阅同步成功，共 ${events.size} 个事件")
             return SyncResult(
                 success = true,
                 message = "同步成功",
@@ -201,14 +191,12 @@ class SubscriptionRepository(
             } catch (ex: Exception) {
                 "无法读取错误响应体: ${ex.message}"
             }
-            Log.e("SubscriptionRepository", "天气订阅同步失败 - HTTP ${e.code()}: $errorBody", e)
             return SyncResult(
                 success = false,
                 message = "同步失败: HTTP ${e.code()} - ${errorBody.take(100)}",
                 updatedCount = 0
             )
         } catch (e: Exception) {
-            Log.e("SubscriptionRepository", "天气订阅同步失败", e)
             return SyncResult(
                 success = false,
                 message = "同步失败: ${e.message}",

@@ -17,28 +17,23 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.calendar.data.Event
 import com.example.calendar.util.toLocalTime
-import java.time.Instant
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * 七元组数据类，用于存储样式信息
+ * 六元组数据类，用于存储样式信息
  */
-private data class Septuple<A, B, C, D, E, F, G>(
+private data class Sextuple<A, B, C, D, E, F>(
     val first: A,
     val second: B,
     val third: C,
     val fourth: D,
     val fifth: E,
-    val sixth: F,
-    val seventh: G
+    val sixth: F
 )
 
 /**
@@ -98,14 +93,13 @@ fun EventItemCard(
     val status = getEventStatus(event)
     
     // 根据状态设置不同的颜色和样式
-    val (accentColor, containerColor, textColor, textDecoration, borderColor, badgeText, badgeColor) = when (status) {
+    val (accentColor, containerColor, textColor, borderColor, badgeText, badgeColor) = when (status) {
         EventStatus.COMPLETED -> {
-            // 已完成：灰色竖线，浅灰背景，灰色文字，灰色边框（无删除线）
-            Septuple(
+            // 已完成：灰色竖线，浅灰背景，灰色文字，灰色边框
+            Sextuple(
                 Color(0xFF9E9E9E),
                 Color(0xFFF5F5F5),
                 Color(0xFF757575),
-                null, // 移除删除线
                 Color(0xFFE0E0E0),
                 "已完成",
                 Color(0xFF9E9E9E)
@@ -113,11 +107,10 @@ fun EventItemCard(
         }
         EventStatus.IN_PROGRESS -> {
             // 正在进行中：橙色竖线，橙色浅背景，正常文字，橙色边框
-            Septuple(
+            Sextuple(
                 Color(0xFFFF6F00),
                 Color(0xFFFFF3E0),
                 Color(0xFFE65100),
-                null,
                 Color(0xFFFFB74D),
                 "进行中",
                 Color(0xFFFF6F00)
@@ -125,11 +118,10 @@ fun EventItemCard(
         }
         EventStatus.UPCOMING -> {
             // 未完成：蓝色竖线，蓝色浅背景，正常文字，蓝色边框
-            Septuple(
+            Sextuple(
                 Color(0xFF1976D2),
                 Color(0xFFE3F2FD),
                 Color(0xFF1565C0),
-                null,
                 Color(0xFF90CAF9),
                 "待办",
                 Color(0xFF1976D2)
@@ -197,7 +189,6 @@ fun EventItemCard(
                     text = event.summary,
                     style = MaterialTheme.typography.titleMedium,
                     color = textColor,
-                    textDecoration = textDecoration,
                     fontWeight = if (status == EventStatus.COMPLETED) FontWeight.Normal else FontWeight.Medium
                 )
 
@@ -208,7 +199,6 @@ fun EventItemCard(
                     text = "${formatter.format(startTime)} - ${formatter.format(endTime)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = textColor.copy(alpha = if (status == EventStatus.COMPLETED) 0.6f else 0.8f),
-                    textDecoration = textDecoration,
                     modifier = Modifier.padding(top = 4.dp)
                 )
 
@@ -219,7 +209,6 @@ fun EventItemCard(
                             text = desc,
                             style = MaterialTheme.typography.bodySmall,
                             color = textColor.copy(alpha = if (status == EventStatus.COMPLETED) 0.6f else 0.7f),
-                            textDecoration = textDecoration,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
@@ -229,7 +218,6 @@ fun EventItemCard(
                             text = "📍 $location",
                             style = MaterialTheme.typography.bodySmall,
                             color = textColor.copy(alpha = if (status == EventStatus.COMPLETED) 0.6f else 0.7f),
-                            textDecoration = textDecoration,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }

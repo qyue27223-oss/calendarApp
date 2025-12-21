@@ -532,7 +532,7 @@ fun EventEditorDialog(
                         onClick = {
                             if (title.isNotBlank()) {
                                 // 使用事件指定的时区来转换时间戳，确保保存和显示时区一致
-                                val eventTimezone = editingEvent?.timezone ?: "Asia/Shanghai"
+                                val eventTimezone = editingEvent?.timezone ?: java.time.ZoneId.systemDefault().id
                                 
                                 // 确保结束时间不早于开始时间
                                 val finalEndTime = if (endTime.isBefore(startTime) || endTime.isEqual(startTime)) {

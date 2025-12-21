@@ -24,7 +24,7 @@ data class Event(
     val dtStart: Long,            // RFC5545: DTSTART (开始时间，时间戳)
     val dtEnd: Long,              // RFC5545: DTEND (结束时间，时间戳)
     val location: String? = null, // RFC5545: LOCATION (地点)
-    val timezone: String = "Asia/Shanghai", // 时区
+    val timezone: String = java.time.ZoneId.systemDefault().id, // 时区
     val reminderMinutes: Int? = null, // 提醒时间（提前多少分钟）
     val eventType: EventType = EventType.NORMAL, // 日程类型
     val repeatType: RepeatType = RepeatType.NONE, // 重复类型

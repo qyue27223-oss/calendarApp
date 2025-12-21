@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -207,134 +208,13 @@ class MainActivity : ComponentActivity() {
                             // 日历主页面头部
                             TopAppBar(
                                 title = {
-                                    // 根据视图模式显示不同的标题
-                                    when (uiState.viewMode) {
-                                    com.example.calendar.ui.CalendarViewMode.MONTH -> {
-                                        Row(
-                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            // 左箭头
-                                            IconButton(
-                                                onClick = { vm.goToPrevious() },
-                                                modifier = Modifier.size(48.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                                    contentDescription = "上一月",
-                                                    modifier = Modifier.size(24.dp)
-                                                )
-                                            }
-                                            
-                                            // 年月和周数
-                                            Column {
-                                                Text(
-                                                    text = "${uiState.selectedDate.year}年${uiState.selectedDate.monthValue}月",
-                                                    style = MaterialTheme.typography.titleLarge
-                                                )
-                                                val weekNumber = getWeekNumber(uiState.selectedDate)
-                                                Text(
-                                                    text = "第${weekNumber}周",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                            
-                                            // 右箭头
-                                            IconButton(
-                                                onClick = { vm.goToNext() },
-                                                modifier = Modifier.size(48.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.AutoMirrored.Filled.ArrowForward,
-                                                    contentDescription = "下一月",
-                                                    modifier = Modifier.size(24.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    com.example.calendar.ui.CalendarViewMode.WEEK -> {
-                                        Row(
-                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            // 左箭头
-                                            IconButton(
-                                                onClick = { vm.goToPrevious() },
-                                                modifier = Modifier.size(48.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                                    contentDescription = "上一周",
-                                                    modifier = Modifier.size(24.dp)
-                                                )
-                                            }
-                                            
-                                            // 年月和周数
-                                            Column {
-                                                Text(
-                                                    text = "${uiState.selectedDate.year}年${uiState.selectedDate.monthValue}月",
-                                                    style = MaterialTheme.typography.titleLarge
-                                                )
-                                                val weekNumber = getWeekNumber(uiState.selectedDate)
-                                                Text(
-                                                    text = "第${weekNumber}周",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                            
-                                            // 右箭头
-                                            IconButton(
-                                                onClick = { vm.goToNext() },
-                                                modifier = Modifier.size(48.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.AutoMirrored.Filled.ArrowForward,
-                                                    contentDescription = "下一周",
-                                                    modifier = Modifier.size(24.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    com.example.calendar.ui.CalendarViewMode.DAY -> {
-                                        Row(
-                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            // 左箭头
-                                            IconButton(
-                                                onClick = { vm.goToPrevious() },
-                                                modifier = Modifier.size(48.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                                    contentDescription = "上一天",
-                                                    modifier = Modifier.size(24.dp)
-                                                )
-                                            }
-                                            
-                                            // 日期
-                                            Text(
-                                                text = "${uiState.selectedDate.year}年${uiState.selectedDate.monthValue}月${uiState.selectedDate.dayOfMonth}日",
-                                                style = MaterialTheme.typography.titleLarge
-                                            )
-                                            
-                                            // 右箭头
-                                            IconButton(
-                                                onClick = { vm.goToNext() },
-                                                modifier = Modifier.size(48.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.AutoMirrored.Filled.ArrowForward,
-                                                    contentDescription = "下一天",
-                                                    modifier = Modifier.size(24.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            },
+                                    CalendarTopBarTitle(
+                                        viewMode = uiState.viewMode,
+                                        selectedDate = uiState.selectedDate,
+                                        onPrevious = { vm.goToPrevious() },
+                                        onNext = { vm.goToNext() }
+                                    )
+                                },
                             actions = {
                                 // 快速选中今天按钮（只在月视图和周视图显示）
                                 if (uiState.viewMode == com.example.calendar.ui.CalendarViewMode.MONTH || 
@@ -585,6 +465,110 @@ private const val REMINDER_CHANNEL_ID = "calendar_reminders"
 private fun getWeekNumber(date: java.time.LocalDate): Int {
     val weekFields = WeekFields.of(Locale.getDefault())
     return date.get(weekFields.weekOfWeekBasedYear())
+}
+
+/**
+ * 导航图标按钮组件
+ */
+@Composable
+private fun NavigationIconButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.size(48.dp)
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+/**
+ * 前进图标按钮组件
+ */
+@Composable
+private fun ForwardIconButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.size(48.dp)
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+/**
+ * 日历顶部导航栏标题组件
+ */
+@Composable
+private fun CalendarTopBarTitle(
+    viewMode: com.example.calendar.ui.CalendarViewMode,
+    selectedDate: java.time.LocalDate,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 左箭头
+        NavigationIconButton(
+            onClick = onPrevious,
+            contentDescription = when (viewMode) {
+                com.example.calendar.ui.CalendarViewMode.MONTH -> "上一月"
+                com.example.calendar.ui.CalendarViewMode.WEEK -> "上一周"
+                com.example.calendar.ui.CalendarViewMode.DAY -> "上一天"
+            }
+        )
+        
+        // 标题内容
+        when (viewMode) {
+            com.example.calendar.ui.CalendarViewMode.MONTH, com.example.calendar.ui.CalendarViewMode.WEEK -> {
+                Column {
+                    Text(
+                        text = "${selectedDate.year}年${selectedDate.monthValue}月",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    val weekNumber = getWeekNumber(selectedDate)
+                    Text(
+                        text = "第${weekNumber}周",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            com.example.calendar.ui.CalendarViewMode.DAY -> {
+                Text(
+                    text = "${selectedDate.year}年${selectedDate.monthValue}月${selectedDate.dayOfMonth}日",
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
+        }
+        
+        // 右箭头
+        ForwardIconButton(
+            onClick = onNext,
+            contentDescription = when (viewMode) {
+                com.example.calendar.ui.CalendarViewMode.MONTH -> "下一月"
+                com.example.calendar.ui.CalendarViewMode.WEEK -> "下一周"
+                com.example.calendar.ui.CalendarViewMode.DAY -> "下一天"
+            }
+        )
+    }
 }
 
 private fun MainActivity.createNotificationChannel() {
