@@ -132,7 +132,7 @@ class EventRepository(
             }
         }
         
-        return savedEventIds[0]
+        return savedEvents[0].id
     }
     
     /**

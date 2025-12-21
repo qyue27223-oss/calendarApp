@@ -4,27 +4,20 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 /**
- * 天气 API 服务接口
- * 
- * 注意：这里使用示例 API，实际使用时需要替换为真实的天气 API 端点
+ * 和风天气 API 服务接口
+ * API地址：https://devapi.qweather.com/v7/weather/7d
  */
 interface WeatherApiService {
     
     /**
-     * 获取15日天气预报
-     * @param city 城市名称，如"北京"、"石景山区"
+     * 获取7日天气预报
+     * @param key API密钥
+     * @param location 城市ID/经纬度，如"101010100"（北京）或"116.41,39.92"（经纬度）
      */
-    @GET("weather/15days")
-    suspend fun get15DayForecast(
-        @Query("city") city: String
-    ): WeatherResponse
-    
-    /**
-     * 获取当前天气
-     */
-    @GET("weather/current")
-    suspend fun getCurrentWeather(
-        @Query("city") city: String
+    @GET("v7/weather/7d")
+    suspend fun get7DayForecast(
+        @Query("key") key: String,
+        @Query("location") location: String
     ): WeatherResponse
 }
 

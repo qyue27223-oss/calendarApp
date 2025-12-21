@@ -19,7 +19,8 @@ class SubscriptionSyncWorker(
             val database = AppDatabase.getInstance(applicationContext)
             val repository = SubscriptionRepository(
                 subscriptionDao = database.subscriptionDao(),
-                subscriptionEventDao = database.subscriptionEventDao()
+                subscriptionEventDao = database.subscriptionEventDao(),
+                context = applicationContext
             )
 
             // 同步所有启用的订阅

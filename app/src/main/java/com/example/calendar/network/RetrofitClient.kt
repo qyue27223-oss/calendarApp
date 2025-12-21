@@ -11,8 +11,8 @@ import java.util.concurrent.TimeUnit
  */
 object RetrofitClient {
     
-    // 注意：这里使用示例基础 URL，实际使用时需要替换为真实的 API 地址
-    private const val BASE_URL_WEATHER = "https://api.example.com/"
+    // 和风天气API基础URL
+    private const val BASE_URL_WEATHER = "https://devapi.qweather.com/"
     private const val BASE_URL_HUANGLI = "http://v.juhe.cn/"
 
     private val okHttpClient: OkHttpClient by lazy {

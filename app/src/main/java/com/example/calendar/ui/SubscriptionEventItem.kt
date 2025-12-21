@@ -102,177 +102,188 @@ private fun WeatherEventContent(
     }
 
     val type = content?.get("type")?.asString ?: ""
-    val city = content?.get("city")?.asString ?: ""
-
-    if (type == "current") {
-        // 当前天气 - 参考图片样式
-        val temp = content?.get("temp")?.asString ?: ""
-        val weather = content?.get("weather")?.asString ?: ""
-        val aqi = content?.get("aqi")?.asString ?: ""
-        val aqiLevel = content?.get("aqiLevel")?.asString ?: ""
-
-        // 顶部：地区 | 15日天气 >
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 天气图标
-                Text(
-                    text = "☁️",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Text(
-                    text = city.ifEmpty { "天气" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = " | ",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "15日天气 >",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
+    
+    // 适配和风天气API数据格式
+    if (type == "current" || type == "forecast") {
+        // 当前天气（第一天）或预报天气 - 参考图片样式
+        val fxDate = content?.get("fxDate")?.asString ?: ""
+        val tempMax = content?.get("tempMax")?.asString ?: ""
+        val tempMin = content?.get("tempMin")?.asString ?: ""
+        val textDay = content?.get("textDay")?.asString ?: ""
+        val textNight = content?.get("textNight")?.asString ?: ""
+        val humidity = content?.get("humidity")?.asString ?: ""
         
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        // 温度、天气状况、空气质量
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "${temp}°",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = weather,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (aqi.isNotEmpty()) {
+        // 如果是今天，显示为当前天气
+        val isToday = fxDate == LocalDate.now().toString()
+
+        if (isToday) {
+            // 当前天气卡片样式
+            // 顶部：地区 | 7日天气 >
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 天气图标
                     Text(
-                        text = "$aqiLevel $aqi",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "☁️",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(
+                        text = "天气",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = " | ",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "7日天气 >",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // 5日天气预报横向显示
-        data class ForecastData(val date: String, val low: String, val high: String, val weather: String)
-        
-        val fiveDayForecasts = forecastEvents
-            .take(5) // 只取前5天
-            .mapNotNull { forecastEvent ->
-                try {
-                    val forecastContent = gson.fromJson(forecastEvent.content, JsonObject::class.java)
-                    if (forecastContent?.get("type")?.asString == "forecast") {
-                        ForecastData(
-                            date = forecastContent.get("date")?.asString ?: "",
-                            low = forecastContent.get("low")?.asString ?: "",
-                            high = forecastContent.get("high")?.asString ?: "",
-                            weather = forecastContent.get("weather")?.asString ?: ""
-                        )
-                    } else null
-                } catch (e: Exception) {
-                    null
-                }
-            }
-        
-        if (fiveDayForecasts.isNotEmpty()) {
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 温度、天气状况
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                fiveDayForecasts.forEach { forecast ->
-                    val date = forecast.date
-                    val low = forecast.low
-                    val high = forecast.high
-                    val weather = forecast.weather
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        // 日期（今天显示"今天"，其他显示月/日）
-                        val displayDate = if (date.contains("今天") || date.contains(LocalDate.now().toString())) {
-                            "今天"
-                        } else {
-                            // 尝试解析日期并格式化
-                            try {
-                                val dateParts = date.split("-")
-                                if (dateParts.size >= 2) {
-                                    "${dateParts[1]}/${dateParts[2]}"
-                                } else {
-                                    date
-                                }
-                            } catch (e: Exception) {
-                                date
-                            }
-                        }
+                Text(
+                    text = "${tempMax}°",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = textDay.ifEmpty { "晴" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (humidity.isNotEmpty()) {
                         Text(
-                            text = displayDate,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        // 天气图标（简化显示）
-                        Text(
-                            text = "☀️", // 可以根据weather字段选择不同图标
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        // 温度范围
-                        Text(
-                            text = "$low°/$high°",
+                            text = "湿度 $humidity%",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
-        }
-    } else {
-        // 天气预报（单独显示某一天的预报）
-        val date = content?.get("date")?.asString ?: ""
-        val high = content?.get("high")?.asString ?: ""
-        val low = content?.get("low")?.asString ?: ""
-        val weather = content?.get("weather")?.asString ?: ""
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 5日天气预报横向显示（显示未来5天，不包括今天）
+            data class ForecastData(val date: String, val low: String, val high: String, val weather: String)
+            
+            val fiveDayForecasts = forecastEvents
+                .take(6) // 取6个（包括今天的，需要跳过）
+                .drop(1) // 跳过今天的
+                .take(5) // 只取前5天
+                .mapNotNull { forecastEvent ->
+                    try {
+                        val forecastContent = gson.fromJson(forecastEvent.content, JsonObject::class.java)
+                        val forecastType = forecastContent?.get("type")?.asString ?: ""
+                        if (forecastType == "forecast" || forecastType == "current") {
+                            ForecastData(
+                                date = forecastContent.get("fxDate")?.asString ?: forecastContent.get("date")?.asString ?: "",
+                                low = forecastContent.get("tempMin")?.asString ?: forecastContent.get("low")?.asString ?: "",
+                                high = forecastContent.get("tempMax")?.asString ?: forecastContent.get("high")?.asString ?: "",
+                                weather = forecastContent.get("textDay")?.asString ?: forecastContent.get("weather")?.asString ?: ""
+                            )
+                        } else null
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+            
+            if (fiveDayForecasts.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    fiveDayForecasts.forEach { forecast ->
+                        val date = forecast.date
+                        val low = forecast.low
+                        val high = forecast.high
+                        val weather = forecast.weather
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            // 日期（今天显示"今天"，其他显示月/日）
+                            val displayDate = if (date.contains("今天") || date.contains(LocalDate.now().toString())) {
+                                "今天"
+                            } else {
+                                // 尝试解析日期并格式化
+                                try {
+                                    val dateParts = date.split("-")
+                                    if (dateParts.size >= 2) {
+                                        "${dateParts[1]}/${dateParts[2]}"
+                                    } else {
+                                        date
+                                    }
+                                } catch (e: Exception) {
+                                    date
+                                }
+                            }
+                            Text(
+                                text = displayDate,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            // 天气图标（简化显示）
+                            Text(
+                                text = "☀️", // 可以根据weather字段选择不同图标
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            // 温度范围
+                            Text(
+                                text = "$low°/$high°",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            // 非今天的预报天气（单独显示某一天的预报）
+            val fxDate = content?.get("fxDate")?.asString ?: content?.get("date")?.asString ?: ""
+            val tempMax = content?.get("tempMax")?.asString ?: content?.get("high")?.asString ?: ""
+            val tempMin = content?.get("tempMin")?.asString ?: content?.get("low")?.asString ?: ""
+            val textDay = content?.get("textDay")?.asString ?: content?.get("weather")?.asString ?: ""
 
-        Text(
-            text = date,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
             Text(
-                text = "$low° / $high°",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = weather,
-                style = MaterialTheme.typography.bodySmall,
+                text = fxDate,
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$tempMin° / $tempMax°",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = textDay,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -294,6 +305,10 @@ private fun HuangliEventContent(event: SubscriptionEvent) {
     val yinli = content?.get("yinli")?.asString ?: ""  // 阴历，如"甲午(马)年八月十八"
     val yiStr = content?.get("yi")?.asString ?: ""  // 宜（字符串）
     val jiStr = content?.get("ji")?.asString ?: ""  // 忌（字符串）
+    
+    // 解析宜和忌，限制最多显示6项
+    val yiItems = parseAndLimitItems(yiStr, maxItems = 6)
+    val jiItems = parseAndLimitItems(jiStr, maxItems = 6)
     
     // 从yinli中提取农历日期部分（年月日）
     // 格式如"甲午(马)年八月十八"，需要提取"八月十八"
@@ -369,7 +384,7 @@ private fun HuangliEventContent(event: SubscriptionEvent) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // 宜（绿色圆形按钮）- 上方
-                if (yiStr.isNotEmpty()) {
+                if (yiItems.isNotEmpty()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -396,7 +411,7 @@ private fun HuangliEventContent(event: SubscriptionEvent) {
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = yiStr,
+                            text = yiItems.joinToString(" "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -404,7 +419,7 @@ private fun HuangliEventContent(event: SubscriptionEvent) {
                 }
 
                 // 忌（红色圆形按钮）- 下方
-                if (jiStr.isNotEmpty()) {
+                if (jiItems.isNotEmpty()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -431,7 +446,7 @@ private fun HuangliEventContent(event: SubscriptionEvent) {
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = jiStr,
+                            text = jiItems.joinToString(" "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -471,5 +486,21 @@ private fun extractYearInfo(yinli: String): String {
     }
     
     return ""
+}
+
+/**
+ * 解析并限制显示的项目数量
+ * @param itemsStr 项目字符串，用空格分隔
+ * @param maxItems 最多显示的项目数量，默认6个
+ * @return 限制后的项目列表
+ */
+private fun parseAndLimitItems(itemsStr: String, maxItems: Int = 6): List<String> {
+    if (itemsStr.isEmpty()) return emptyList()
+    
+    // 按空格分隔，过滤空字符串，限制数量
+    return itemsStr.split(" ")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .take(maxItems)
 }
 

@@ -77,7 +77,10 @@ class CalendarViewModel(
             val dateMillis = selectedDate.atStartOfDay(
                 java.time.ZoneId.systemDefault()
             ).toInstant().toEpochMilli()
-            { subscription -> subscriptionRepository.getEventsByDate(dateMillis, subscription.id) }
+            return@getSubscriptionEventsFlow { subscription -> 
+                subscriptionRepository?.getEventsByDate(dateMillis, subscription.id) 
+                    ?: flowOf(emptyList())
+            }
         }
 
     // 获取未来5天的订阅事件（用于天气卡片显示5日预报）
@@ -89,7 +92,10 @@ class CalendarViewModel(
             val endDateMillis = selectedDate.plusDays(5).atStartOfDay(
                 java.time.ZoneId.systemDefault()
             ).toInstant().toEpochMilli()
-            { subscription -> subscriptionRepository.getEventsBetween(startDateMillis, endDateMillis, subscription.id) }
+            return@getSubscriptionEventsFlow { subscription -> 
+                subscriptionRepository?.getEventsBetween(startDateMillis, endDateMillis, subscription.id)
+                    ?: flowOf(emptyList())
+            }
         }
 
     /**

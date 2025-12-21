@@ -1,8 +1,10 @@
 package com.example.calendar.data
 
+import android.content.Context
 import com.example.calendar.network.HuangliApiService
 import com.example.calendar.network.RetrofitClient
 import com.example.calendar.network.WeatherApiService
+import com.example.calendar.util.LocationHelper
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
@@ -18,9 +20,11 @@ class SubscriptionRepository(
     private val subscriptionDao: SubscriptionDao,
     private val subscriptionEventDao: SubscriptionEventDao,
     private val weatherApiService: WeatherApiService = RetrofitClient.weatherApiService,
-    private val huangliApiService: HuangliApiService = RetrofitClient.huangliApiService
+    private val huangliApiService: HuangliApiService = RetrofitClient.huangliApiService,
+    private val context: Context? = null
 ) {
     private val gson = Gson()
+    private val WEATHER_API_KEY = "65e83959cb1c46f0bcf7ce72489075c7"
 
     // ========== 订阅配置管理 ==========
 
@@ -94,57 +98,59 @@ class SubscriptionRepository(
 
     /**
      * 同步天气订阅
+     * 使用和风天气API获取7天天气预报
      */
     private suspend fun syncWeatherSubscription(subscription: Subscription): SyncResult {
         try {
-            // 获取15日天气预报
-            val response = weatherApiService.get15DayForecast(subscription.name)
+            // 获取当前位置
+            val location = context?.let { LocationHelper.getCurrentLocation(it) } 
+                ?: "116.41,39.92" // 默认北京位置
             
-            if (response.code != "200" || response.data == null) {
+            // 调用和风天气API获取7天天气预报
+            val response = weatherApiService.get7DayForecast(
+                key = WEATHER_API_KEY,
+                location = location
+            )
+            
+            if (response.code != "200" || response.daily == null || response.daily.isEmpty()) {
                 return SyncResult(
                     success = false,
-                    message = response.message ?: "获取天气数据失败",
+                    message = "获取天气数据失败: code=${response.code}",
                     updatedCount = 0
                 )
             }
 
             val events = mutableListOf<SubscriptionEvent>()
-            val today = LocalDate.now()
+            val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
             
-            // 处理当前天气
-            response.data.current?.let { current ->
-                val dateMillis = today.atStartOfDay(ZoneId.systemDefault())
-                    .toInstant().toEpochMilli()
-                val content = gson.toJson(mapOf(
-                    "type" to "current",
-                    "temp" to current.temp,
-                    "weather" to current.weather,
-                    "aqi" to current.aqi,
-                    "aqiLevel" to current.aqiLevel,
-                    "city" to response.data.city
-                ))
-                events.add(
-                    SubscriptionEvent(
-                        subscriptionId = subscription.id,
-                        date = dateMillis,
-                        content = content
-                    )
-                )
-            }
-
-            // 处理15日预报
-            response.data.forecast?.forEachIndexed { index, forecast ->
-                val date = today.plusDays(index.toLong())
+            // 处理7天天气预报
+            response.daily.forEachIndexed { index, forecast ->
+                val dateStr = forecast.fxDate ?: return@forEachIndexed
+                val date = try {
+                    LocalDate.parse(dateStr, dateFormatter)
+                } catch (e: Exception) {
+                    // 如果解析失败，使用今天+索引天数
+                    LocalDate.now().plusDays(index.toLong())
+                }
+                
                 val dateMillis = date.atStartOfDay(ZoneId.systemDefault())
                     .toInstant().toEpochMilli()
+                
+                // 构建天气数据内容
                 val content = gson.toJson(mapOf(
-                    "type" to "forecast",
-                    "date" to forecast.date,
-                    "high" to forecast.high,
-                    "low" to forecast.low,
-                    "weather" to forecast.weather,
-                    "icon" to forecast.icon
+                    "type" to if (index == 0) "current" else "forecast",
+                    "date" to dateStr,
+                    "fxDate" to forecast.fxDate,
+                    "tempMax" to (forecast.tempMax ?: ""),
+                    "tempMin" to (forecast.tempMin ?: ""),
+                    "textDay" to (forecast.textDay ?: ""),
+                    "textNight" to (forecast.textNight ?: ""),
+                    "windDirDay" to (forecast.windDirDay ?: ""),
+                    "windScaleDay" to (forecast.windScaleDay ?: ""),
+                    "humidity" to (forecast.humidity ?: ""),
+                    "uvIndex" to (forecast.uvIndex ?: "")
                 ))
+                
                 events.add(
                     SubscriptionEvent(
                         subscriptionId = subscription.id,

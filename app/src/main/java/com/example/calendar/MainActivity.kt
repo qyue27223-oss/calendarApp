@@ -2,6 +2,7 @@ package com.example.calendar
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -94,7 +95,8 @@ class MainActivity : ComponentActivity() {
         )
         val subscriptionRepository = SubscriptionRepository(
             subscriptionDao = database.subscriptionDao(),
-            subscriptionEventDao = database.subscriptionEventDao()
+            subscriptionEventDao = database.subscriptionEventDao(),
+            context = applicationContext
         )
 
         // 启动定时同步任务
@@ -614,7 +616,7 @@ private fun MainActivity.createNotificationChannel() {
 private fun MainActivity.initializeDefaultSubscriptions(
     subscriptionRepository: SubscriptionRepository
 ) {
-    val prefs = getSharedPreferences("calendar_prefs", MODE_PRIVATE)
+    val prefs = getSharedPreferences("calendar_prefs", Context.MODE_PRIVATE)
     val hasInitialized = prefs.getBoolean("has_initialized_subscriptions", false)
     
     if (!hasInitialized) {
@@ -625,7 +627,7 @@ private fun MainActivity.initializeDefaultSubscriptions(
                 // 创建默认天气订阅
                 val weatherSubscription = com.example.calendar.data.Subscription(
                     type = com.example.calendar.data.SubscriptionType.WEATHER,
-                    name = "天气订阅",
+                    name = "日历天气卡",
                     url = "http://example.com/weather", // TODO: 替换为实际API
                     enabled = true
                 )
