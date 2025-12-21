@@ -26,9 +26,9 @@ class ReminderReceiver : BroadcastReceiver() {
             val db = AppDatabase.getInstance(context)
             val event = db.getEventByIdOnce(eventId)
             event?.let {
-                // 使用事件中的 hasAlarm 字段（如果 Intent 中没有传递）
-                val shouldRing = hasAlarm || event.hasAlarm
-                showNotification(context, it.summary, shouldRing)
+                // 直接使用数据库中的 hasAlarm 字段，这是最准确的
+                // Intent 中的 hasAlarm 可能不是最新的（如果用户修改了设置）
+                showNotification(context, it.summary, event.hasAlarm)
             }
         }
     }

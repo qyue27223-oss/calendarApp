@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -136,8 +137,19 @@ private fun WeatherEventContent(
 ) {
     val context = LocalContext.current
     var showCityDialog by remember { mutableStateOf(false) }
-    val currentCityCode = remember { LocationHelper.getCityCode(context) }
-    val currentCityName = remember { LocationHelper.getCityName(context) }
+    // 使用 mutableStateOf 确保城市切换时能响应式更新
+    var currentCityCode by remember { mutableStateOf(LocationHelper.getCityCode(context)) }
+    var currentCityName by remember { mutableStateOf(LocationHelper.getCityName(context)) }
+    
+    // 监听城市变化，当对话框关闭后重新读取城市信息
+    // 使用 LaunchedEffect 来响应 showCityDialog 的变化
+    LaunchedEffect(showCityDialog) {
+        if (!showCityDialog) {
+            // 对话框关闭后，重新读取城市信息以确保同步
+            currentCityCode = LocationHelper.getCityCode(context)
+            currentCityName = LocationHelper.getCityName(context)
+        }
+    }
     
     val gson = Gson()
     val content = try {
@@ -406,6 +418,9 @@ private fun WeatherEventContent(
                 onDismiss = { showCityDialog = false },
                 onCitySelected = { city ->
                     LocationHelper.saveCity(context, city.code, city.name)
+                    // 立即更新状态，确保城市名称同步更新
+                    currentCityCode = city.code
+                    currentCityName = city.name
                     showCityDialog = false
                     // 触发重新同步天气数据
                     onCityChanged?.invoke()

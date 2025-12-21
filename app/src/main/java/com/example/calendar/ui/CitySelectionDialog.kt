@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.calendar.data.City
 import com.example.calendar.data.CityList
+import com.example.calendar.util.PinyinHelper
 
 /**
  * 城市选择对话框
@@ -49,13 +50,13 @@ fun CitySelectionDialog(
 ) {
     var searchText by remember { mutableStateOf("") }
     
-    // 根据搜索文本过滤城市列表
+    // 根据搜索文本过滤城市列表（支持中文、拼音、拼音首字母、模糊匹配）
     val filteredCities = remember(searchText) {
         if (searchText.isBlank()) {
             CityList.cities
         } else {
             CityList.cities.filter { city ->
-                city.name.contains(searchText, ignoreCase = true)
+                PinyinHelper.matches(city.name, searchText)
             }
         }
     }

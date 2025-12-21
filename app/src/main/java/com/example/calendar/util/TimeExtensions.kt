@@ -28,6 +28,19 @@ fun LocalDateTime.toMillis(zoneId: ZoneId = ZoneId.systemDefault()): Long {
 }
 
 /**
+ * 将 LocalDateTime 转换为时间戳（毫秒），使用指定的时区ID字符串
+ * @param timezoneId 时区ID，如 "Asia/Shanghai"，如果为空或无效则使用系统默认时区
+ */
+fun LocalDateTime.toMillis(timezoneId: String): Long {
+    val zoneId = try {
+        ZoneId.of(timezoneId)
+    } catch (_: Exception) {
+        ZoneId.systemDefault()
+    }
+    return this.atZone(zoneId).toInstant().toEpochMilli()
+}
+
+/**
  * 计算一周的开始日期（周一为一周开始）
  */
 fun LocalDate.startOfWeek(): LocalDate {

@@ -110,7 +110,8 @@ fun EventEditorDialog(
         mutableIntStateOf(editingEvent?.reminderMinutes ?: 5) // 默认5分钟
     }
     val (hasReminder, setHasReminder) = remember(editingEvent) {
-        mutableStateOf(editingEvent?.reminderMinutes != null ?: true) // 默认开启提醒
+        // 新建日程时默认开启提醒（默认5分钟），编辑时根据原有设置
+        mutableStateOf(editingEvent?.reminderMinutes != null || editingEvent == null)
     }
     val (hasAlarm, setHasAlarm) = remember(editingEvent) {
         mutableStateOf(editingEvent?.hasAlarm ?: false) // 响铃提醒
@@ -530,8 +531,19 @@ fun EventEditorDialog(
                     Button(
                         onClick = {
                             if (title.isNotBlank()) {
-                                val startMillis = startTime.toMillis()
-                                val endMillis = endTime.toMillis()
+                                // 使用事件指定的时区来转换时间戳，确保保存和显示时区一致
+                                val eventTimezone = editingEvent?.timezone ?: "Asia/Shanghai"
+                                
+                                // 确保结束时间不早于开始时间
+                                val finalEndTime = if (endTime.isBefore(startTime) || endTime.isEqual(startTime)) {
+                                    // 如果结束时间早于或等于开始时间，自动设置为开始时间 + 1小时
+                                    startTime.plusHours(1)
+                                } else {
+                                    endTime
+                                }
+                                
+                                val startMillis = startTime.toMillis(eventTimezone)
+                                val endMillis = finalEndTime.toMillis(eventTimezone)
                                 val reminder = if (hasReminder) reminderMinutes else null
                                 
                                 val event = if (editingEvent == null) {
@@ -542,6 +554,7 @@ fun EventEditorDialog(
                                         location = null,
                                         dtStart = startMillis,
                                         dtEnd = endMillis,
+                                        timezone = eventTimezone,
                                         reminderMinutes = reminder,
                                         eventType = eventType,
                                         hasAlarm = hasAlarm

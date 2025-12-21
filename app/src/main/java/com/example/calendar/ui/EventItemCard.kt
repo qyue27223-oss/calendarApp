@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.calendar.data.Event
 import com.example.calendar.util.toLocalTime
+import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -51,12 +52,28 @@ enum class EventStatus {
 
 /**
  * 判断日程状态
+ * 注意：时间戳都是UTC的，可以直接比较，不需要时区转换
  */
 private fun getEventStatus(event: Event): EventStatus {
     val now = System.currentTimeMillis()
+    
+    // 直接比较时间戳（都是UTC，可以直接比较）
+    // 注意：必须确保结束时间 >= 开始时间，否则数据异常
+    if (event.dtEnd < event.dtStart) {
+        // 如果结束时间早于开始时间，数据异常，返回待办状态
+        return EventStatus.UPCOMING
+    }
+    
+    // 判断逻辑：
+    // 1. 如果结束时间 < 当前时间 -> 已完成（事件已结束）
+    // 2. 如果开始时间 <= 当前时间 <= 结束时间 -> 进行中（事件正在进行）
+    // 3. 如果当前时间 < 开始时间 -> 待办（事件还未开始）
     return when {
+        // 结束时间已过当前时间 -> 已完成
         event.dtEnd < now -> EventStatus.COMPLETED
-        event.dtStart <= now && event.dtEnd >= now -> EventStatus.IN_PROGRESS
+        // 开始时间已过或等于当前时间，且结束时间还未到 -> 进行中
+        event.dtStart <= now && event.dtEnd > now -> EventStatus.IN_PROGRESS
+        // 开始时间还未到 -> 待办
         else -> EventStatus.UPCOMING
     }
 }
