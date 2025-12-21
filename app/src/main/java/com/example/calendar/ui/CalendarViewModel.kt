@@ -297,6 +297,22 @@ class CalendarViewModel(
     fun clearImportResult() {
         _uiState.value = _uiState.value.copy(importResult = null)
     }
+    
+    /**
+     * 同步天气订阅（用于城市切换后重新获取天气数据）
+     */
+    fun syncWeatherSubscription() {
+        val subscriptionRepository = subscriptionRepository ?: return
+        viewModelScope.launch {
+            val subscriptions = subscriptionRepository.getAllSubscriptions()
+                .firstOrNull() ?: emptyList()
+            
+            subscriptions.filter { it.enabled && it.type == SubscriptionType.WEATHER }
+                .forEach { subscription ->
+                    subscriptionRepository.syncSubscription(subscription)
+                }
+        }
+    }
 }
 
 

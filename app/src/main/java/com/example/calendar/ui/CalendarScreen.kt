@@ -30,6 +30,7 @@ fun CalendarScreen(
     subscriptionEvents: List<Pair<com.example.calendar.data.SubscriptionEvent, com.example.calendar.data.SubscriptionType>> = emptyList(),
     subscriptionEventsForNext5Days: List<Pair<com.example.calendar.data.SubscriptionEvent, com.example.calendar.data.SubscriptionType>> = emptyList(),
     onDayEventClick: (com.example.calendar.data.Event) -> Unit = {},
+    onCityChanged: (() -> Unit)? = null, // 城市切换后的回调
     contentPadding: PaddingValues
 ) {
     val tabs = listOf(
@@ -90,6 +91,7 @@ fun CalendarScreen(
                         subscriptionEvents = subscriptionEvents,
                         subscriptionEventsForNext5Days = subscriptionEventsForNext5Days,
                         onEventClick = onDayEventClick,
+                        onCityChanged = onCityChanged,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(top = 8.dp)
@@ -104,6 +106,7 @@ fun CalendarScreen(
                         subscriptionEvents = subscriptionEvents,
                         subscriptionEventsForNext5Days = subscriptionEventsForNext5Days,
                         onEventClick = onDayEventClick,
+                        onCityChanged = onCityChanged,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(top = 8.dp)
@@ -116,7 +119,8 @@ fun CalendarScreen(
                         subscriptionEvents = subscriptionEvents,
                         allSubscriptionEvents = subscriptionEventsForNext5Days,
                         contentPadding = PaddingValues(0.dp),
-                        onEventClick = onDayEventClick
+                        onEventClick = onDayEventClick,
+                        onCityChanged = onCityChanged
                     )
                 }
             }

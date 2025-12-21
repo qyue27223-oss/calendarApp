@@ -105,9 +105,12 @@ class SubscriptionRepository(
         try {
             Log.d("SubscriptionRepository", "开始同步天气订阅，subscriptionId=${subscription.id}")
             
-            // 获取城市代码（邮编）
-            val cityCode = context?.let { LocationHelper.getCityCode(it) } 
-                ?: "101010100" // 默认北京城市代码
+            // 获取城市代码（邮编）- 使用同步方法
+            val cityCode = if (context != null) {
+                LocationHelper.getCityCode(context)
+            } else {
+                "101010100" // 默认北京城市代码
+            }
             Log.d("SubscriptionRepository", "使用城市代码: $cityCode")
             
             // 调用天气API获取天气预报

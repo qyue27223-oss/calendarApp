@@ -1,21 +1,46 @@
 package com.example.calendar.util
 
 import android.content.Context
+import android.content.SharedPreferences
 
 /**
  * 位置获取工具类
  * 获取城市代码（邮编）用于天气API
  */
 object LocationHelper {
+    private const val PREFS_NAME = "calendar_prefs"
+    private const val KEY_CITY_CODE = "selected_city_code"
+    private const val KEY_CITY_NAME = "selected_city_name"
+    private const val DEFAULT_CITY_CODE = "101010100" // 北京
+    private const val DEFAULT_CITY_NAME = "北京"
     
     /**
-     * 获取城市代码（邮编）
-     * 如果没有位置信息，返回默认城市代码（北京：101010100）
-     * 
-     * 注意：这里简化实现，直接返回默认的北京城市代码
-     * 如果需要根据实际位置获取城市代码，可以通过经纬度查询城市代码API
+     * 获取用户选择的城市代码
      */
-    suspend fun getCityCode(context: Context?): String {
-        return "101010100" // 北京
+    fun getCityCode(context: Context?): String {
+        if (context == null) return DEFAULT_CITY_CODE
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_CITY_CODE, DEFAULT_CITY_CODE) ?: DEFAULT_CITY_CODE
+    }
+    
+    /**
+     * 获取用户选择的城市名称
+     */
+    fun getCityName(context: Context?): String {
+        if (context == null) return DEFAULT_CITY_NAME
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_CITY_NAME, DEFAULT_CITY_NAME) ?: DEFAULT_CITY_NAME
+    }
+    
+    /**
+     * 保存用户选择的城市
+     */
+    fun saveCity(context: Context?, cityCode: String, cityName: String) {
+        if (context == null) return
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_CITY_CODE, cityCode)
+            .putString(KEY_CITY_NAME, cityName)
+            .apply()
     }
 }

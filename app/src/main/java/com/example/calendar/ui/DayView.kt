@@ -34,6 +34,7 @@ fun DayView(
     contentPadding: PaddingValues,
     onEventClick: (Event) -> Unit,
     allSubscriptionEvents: List<Pair<SubscriptionEvent, com.example.calendar.data.SubscriptionType>> = emptyList(),
+    onCityChanged: (() -> Unit)? = null,
     modifier: Modifier = Modifier
         .fillMaxSize()
 ) {
@@ -78,7 +79,8 @@ fun DayView(
                     SubscriptionEventItem(
                         subscriptionEvent = subscriptionEvent,
                         subscriptionType = subscriptionType,
-                        allSubscriptionEvents = allSubscriptionEvents
+                        allSubscriptionEvents = allSubscriptionEvents,
+                        onCityChanged = onCityChanged
                     )
                 }
 

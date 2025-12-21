@@ -423,6 +423,7 @@ class MainActivity : ComponentActivity() {
                                 subscriptionEvents = subscriptionEventsForSelectedDate,
                                 subscriptionEventsForNext5Days = subscriptionEventsForNext5Days,
                                 onDayEventClick = { event -> vm.startEditEvent(event) },
+                                onCityChanged = { vm.syncWeatherSubscription() },
                                 contentPadding = innerPadding
                             )
                         }

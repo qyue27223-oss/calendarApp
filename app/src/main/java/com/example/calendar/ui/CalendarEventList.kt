@@ -27,7 +27,8 @@ fun CalendarEventList(
     subscriptionEvents: List<Pair<SubscriptionEvent, SubscriptionType>>,
     onEventClick: (Event) -> Unit,
     formatter: DateTimeFormatter? = null,
-    allSubscriptionEvents: List<Pair<SubscriptionEvent, SubscriptionType>> = emptyList()
+    allSubscriptionEvents: List<Pair<SubscriptionEvent, SubscriptionType>> = emptyList(),
+    onCityChanged: (() -> Unit)? = null
 ) {
     val timeFormatter = formatter ?: TimeFormatters.TIME_FORMATTER
     
@@ -42,7 +43,8 @@ fun CalendarEventList(
                 subscriptionEvent = subscriptionEvent,
                 subscriptionType = subscriptionType,
                 allSubscriptionEvents = allSubscriptionEvents,
-                modifier = Modifier.padding(vertical = 4.dp)
+                modifier = Modifier.padding(vertical = 4.dp),
+                onCityChanged = onCityChanged
             )
         }
         

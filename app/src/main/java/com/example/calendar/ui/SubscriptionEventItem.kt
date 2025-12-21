@@ -18,14 +18,25 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.calendar.data.City
 import com.example.calendar.data.SubscriptionEvent
 import com.example.calendar.data.SubscriptionType
+import com.example.calendar.util.LocationHelper
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import java.time.LocalDate
@@ -40,7 +51,8 @@ fun SubscriptionEventItem(
     subscriptionType: SubscriptionType,
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
-    allSubscriptionEvents: List<Pair<SubscriptionEvent, SubscriptionType>> = emptyList() // 所有订阅事件，用于获取完整的5天预报
+    allSubscriptionEvents: List<Pair<SubscriptionEvent, SubscriptionType>> = emptyList(), // 所有订阅事件，用于获取完整的5天预报
+    onCityChanged: (() -> Unit)? = null // 城市切换后的回调，用于触发重新同步
 ) {
     // 对于天气类型，检查是否在11天范围内
     if (subscriptionType == SubscriptionType.WEATHER) {
@@ -97,7 +109,11 @@ fun SubscriptionEventItem(
             ) {
                 when (subscriptionType) {
                     SubscriptionType.WEATHER -> {
-                        WeatherEventContent(subscriptionEvent, allSubscriptionEvents)
+                        WeatherEventContent(
+                            event = subscriptionEvent,
+                            allSubscriptionEvents = allSubscriptionEvents,
+                            onCityChanged = onCityChanged
+                        )
                     }
                     SubscriptionType.HUANGLI -> {
                         HuangliEventContent(subscriptionEvent)
@@ -115,8 +131,14 @@ fun SubscriptionEventItem(
 @Composable
 private fun WeatherEventContent(
     event: SubscriptionEvent,
-    allSubscriptionEvents: List<Pair<SubscriptionEvent, SubscriptionType>> = emptyList()
+    allSubscriptionEvents: List<Pair<SubscriptionEvent, SubscriptionType>> = emptyList(),
+    onCityChanged: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    var showCityDialog by remember { mutableStateOf(false) }
+    val currentCityCode = remember { LocationHelper.getCityCode(context) }
+    val currentCityName = remember { LocationHelper.getCityName(context) }
+    
     val gson = Gson()
     val content = try {
         gson.fromJson(event.content, JsonObject::class.java)
@@ -153,28 +175,72 @@ private fun WeatherEventContent(
         ) {
             // 顶部标签和标题 - 参考黄历卡片样式
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // 橙色/黄色背景的图标框
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .background(Color(0xFFFFB74D), shape = RoundedCornerShape(4.dp)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 蓝色渐变背景的图标框，使用云朵图标
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(
+                                Color(0xFF64B5F6),
+                                shape = RoundedCornerShape(6.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🌤️",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "☀️",
-                        style = MaterialTheme.typography.bodySmall
+                        text = "天气",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "天气",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                
+                // 城市名称和切换按钮（所有卡片都显示）
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clickable { showCityDialog = true }
+                        .background(
+                            Color(0xFF2196F3).copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.LocationOn,
+                        contentDescription = "位置",
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFF2196F3)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = currentCityName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF2196F3),
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Filled.SwapHoriz,
+                        contentDescription = "切换",
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFF2196F3)
+                    )
+                }
             }
+            
+            Spacer(modifier = Modifier.height(16.dp))
             
             // 所有日期都显示完整的5天预报样式
             // 获取从当前事件日期开始的5天数据
@@ -331,6 +397,20 @@ private fun WeatherEventContent(
                         }
                     }
                 }
+        }
+        
+        // 城市选择对话框（所有卡片都可以显示）
+        if (showCityDialog) {
+            CitySelectionDialog(
+                currentCityCode = currentCityCode,
+                onDismiss = { showCityDialog = false },
+                onCitySelected = { city ->
+                    LocationHelper.saveCity(context, city.code, city.name)
+                    showCityDialog = false
+                    // 触发重新同步天气数据
+                    onCityChanged?.invoke()
+                }
+            )
         }
     }
 }

@@ -42,6 +42,7 @@ fun MonthView(
     subscriptionEvents: List<Pair<com.example.calendar.data.SubscriptionEvent, com.example.calendar.data.SubscriptionType>> = emptyList(),
     subscriptionEventsForNext5Days: List<Pair<com.example.calendar.data.SubscriptionEvent, com.example.calendar.data.SubscriptionType>> = emptyList(),
     onEventClick: (Event) -> Unit = {},
+    onCityChanged: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -118,7 +119,8 @@ fun MonthView(
                 events = dayEvents,
                 subscriptionEvents = subscriptionEvents,
                 onEventClick = onEventClick,
-                allSubscriptionEvents = subscriptionEventsForNext5Days
+                allSubscriptionEvents = subscriptionEventsForNext5Days,
+                onCityChanged = onCityChanged
             )
         }
         
