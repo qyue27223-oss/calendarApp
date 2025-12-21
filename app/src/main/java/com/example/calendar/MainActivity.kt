@@ -2,7 +2,6 @@ package com.example.calendar
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -29,11 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -102,8 +97,8 @@ class MainActivity : ComponentActivity() {
         // 启动定时同步任务
         SubscriptionSyncManager.startPeriodicSync(applicationContext)
 
-        // 初始化默认订阅（首次启动时）
-        initializeDefaultSubscriptions(subscriptionRepository)
+        // 应用启动时检查并同步订阅数据
+        syncSubscriptionsOnStartup(subscriptionRepository)
 
         setContent {
             CalendarTheme {
@@ -338,12 +333,6 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     }
-                                }
-                            },
-                            navigationIcon = {
-                                if (uiState.viewMode == com.example.calendar.ui.CalendarViewMode.MONTH || 
-                                    uiState.viewMode == com.example.calendar.ui.CalendarViewMode.WEEK) {
-                                    // 导航图标已在title中显示
                                 }
                             },
                             actions = {
@@ -611,49 +600,17 @@ private fun MainActivity.createNotificationChannel() {
 }
 
 /**
- * 初始化默认订阅（首次启动时）
+ * 应用启动时检查并同步订阅数据（超过24小时则同步）
+ * 用户可以在订阅管理界面手动创建订阅
  */
-private fun MainActivity.initializeDefaultSubscriptions(
+private fun MainActivity.syncSubscriptionsOnStartup(
     subscriptionRepository: SubscriptionRepository
 ) {
-    val prefs = getSharedPreferences("calendar_prefs", Context.MODE_PRIVATE)
-    val hasInitialized = prefs.getBoolean("has_initialized_subscriptions", false)
-    
-    if (!hasInitialized) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val existingSubs = subscriptionRepository.getAllSubscriptions()
-                .firstOrNull() ?: emptyList()
-            if (existingSubs.isEmpty()) {
-                // 创建默认天气订阅
-                val weatherSubscription = com.example.calendar.data.Subscription(
-                    type = com.example.calendar.data.SubscriptionType.WEATHER,
-                    name = "日历天气卡",
-                    url = "http://example.com/weather", // TODO: 替换为实际API
-                    enabled = true
-                )
-                val weatherId = subscriptionRepository.insertSubscription(weatherSubscription)
-                subscriptionRepository.syncSubscription(weatherSubscription.copy(id = weatherId))
-                
-                // 创建默认黄历订阅
-                val huangliSubscription = com.example.calendar.data.Subscription(
-                    type = com.example.calendar.data.SubscriptionType.HUANGLI,
-                    name = "黄历订阅",
-                    url = "http://example.com/huangli", // TODO: 替换为实际API
-                    enabled = true
-                )
-                val huangliId = subscriptionRepository.insertSubscription(huangliSubscription)
-                subscriptionRepository.syncSubscription(huangliSubscription.copy(id = huangliId))
-            }
-            prefs.edit().putBoolean("has_initialized_subscriptions", true).apply()
-        }
-    } else {
-        // 应用启动时检查是否需要同步（超过24小时则同步）
-        CoroutineScope(Dispatchers.IO).launch {
-            val subscriptions = subscriptionRepository.getAllSubscriptions().firstOrNull() ?: emptyList()
-            subscriptions.filter { it.enabled }.forEach { subscription ->
-                if (subscriptionRepository.shouldSync(subscription, syncIntervalHours = 24)) {
-                    subscriptionRepository.syncSubscription(subscription)
-                }
+    CoroutineScope(Dispatchers.IO).launch {
+        val subscriptions = subscriptionRepository.getAllSubscriptions().firstOrNull() ?: emptyList()
+        subscriptions.filter { it.enabled }.forEach { subscription ->
+            if (subscriptionRepository.shouldSync(subscription, syncIntervalHours = 24)) {
+                subscriptionRepository.syncSubscription(subscription)
             }
         }
     }

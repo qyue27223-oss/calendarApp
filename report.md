@@ -646,15 +646,37 @@ UI 层全部采用 Jetpack Compose 实现：
   - 减少数据库查询次数，特别是在处理重复事件时效果明显（最多可减少 365 次查询）
 - **文件位置**：`app/src/main/java/com/example/calendar/data/EventRepository.kt` (第 87-112 行)
 
-##### MainActivity 代码结构优化
-- **优化内容**：提取初始化订阅逻辑为独立函数 `initializeDefaultSubscriptions()`
-- **优化前**：初始化订阅逻辑直接写在 `onCreate()` 方法中，代码冗长（约 40 行）
-- **优化后**：提取为独立函数，`onCreate()` 方法更简洁
+##### MainActivity 代码结构优化与冗余代码清理
+- **优化内容**：
+  - 删除冗余的默认订阅初始化代码（约 30 行）：移除了首次启动时自动创建天气和黄历订阅的逻辑，因为用户可以在 UI 中手动创建订阅，且 URL 字段在实际同步时未被使用
+  - 简化并重命名函数：将 `initializeDefaultSubscriptions()` 重命名为 `syncSubscriptionsOnStartup()`，仅保留启动时的订阅同步检查逻辑
+  - 删除未使用的导入：移除 `android.content.Context` 导入（`applicationContext` 是 `ComponentActivity` 的成员）
+  - 删除空代码块：移除 `navigationIcon` 中空的 if 语句块
+- **优化前**：初始化订阅逻辑直接写在 `onCreate()` 方法中，包含冗余的默认订阅创建代码（约 40 行）
+- **优化后**：提取为独立函数，删除冗余代码，`onCreate()` 方法更简洁
 - **优化效果**：
-  - 减少 `onCreate()` 方法的代码量，提升可读性
-  - 函数职责更单一，便于测试和维护
-  - 代码结构更清晰，符合单一职责原则
+  - 减少代码约 30 行冗余代码
+  - 函数职责更单一，名称更准确
+  - 代码更简洁，无冗余导入和空代码块
+  - 逻辑更合理：用户可在 UI 中按需创建订阅，无需自动创建默认订阅
 - **文件位置**：`app/src/main/java/com/example/calendar/MainActivity.kt`
+
+##### SubscriptionScreen 代码清理
+- **优化内容**：
+  - 删除未使用的导入：
+    - `androidx.compose.foundation.clickable`
+    - `androidx.compose.material.icons.filled.ArrowBack`
+    - `androidx.compose.material3.Icon`
+    - `androidx.compose.material3.IconButton`
+    - `androidx.compose.material3.TopAppBar`
+    - `androidx.compose.material3.TopAppBarDefaults`
+    - `androidx.compose.foundation.layout.width`
+    - `androidx.compose.material.icons.Icons`
+  - 添加注释说明：为 URL 字段添加注释，说明当前未被使用（同步逻辑直接调用 API 服务）
+- **优化效果**：
+  - 代码更简洁，无冗余导入
+  - 注释更完善，避免混淆
+- **文件位置**：`app/src/main/java/com/example/calendar/ui/SubscriptionScreen.kt`
 
 ##### 代码清理
 - **优化内容**：
@@ -665,9 +687,9 @@ UI 层全部采用 Jetpack Compose 实现：
   - 文档更准确，反映当前实现状态
 
 #### 12.5 优化效果统计
-- **代码行数减少**：约 50-60 行重复代码
+- **代码行数减少**：约 80-90 行冗余代码（包括重复代码和未使用的导入）
 - **性能提升**：避免了一次全表查询，特别是在处理重复事件时
-- **可维护性提升**：代码结构更清晰，函数职责更单一
+- **可维护性提升**：代码结构更清晰，函数职责更单一，无冗余导入和空代码块
 - **文档准确性**：`todo.md` 反映当前实现状态
 
 ### 13. 局限与后续工作展望
@@ -686,7 +708,7 @@ UI 层全部采用 Jetpack Compose 实现：
 - ✅ 现代化的 UI/UX 设计（Material3 规范，统一的共享组件，模块化对话框设计）
 - ✅ 流畅的交互动画
 - ✅ 代码结构优化（共享组件提取，统一时间格式化器，减少代码重复，提升可维护性）
-- ✅ **最新代码优化**（CalendarViewModel 重构、EventRepository 性能优化、MainActivity 结构优化，减少约 50-60 行重复代码）
+- ✅ **最新代码优化**（CalendarViewModel 重构、EventRepository 性能优化、MainActivity 结构优化与冗余代码清理、SubscriptionScreen 代码清理，减少约 80-90 行冗余代码）
 
 **需要完善的部分**：
 - ⚠️ 网络 API 配置：需要配置真实的天气和黄历 API 地址，并根据实际 API 文档调整数据模型；
