@@ -9,6 +9,7 @@ import com.example.calendar.data.SubscriptionEvent
 import com.example.calendar.data.SubscriptionRepository
 import com.example.calendar.data.SubscriptionType
 import com.example.calendar.util.IcsExporter
+import com.example.calendar.util.toLocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flatMapLatest
@@ -60,9 +61,7 @@ class CalendarViewModel(
     val eventsForSelectedDate: StateFlow<List<Event>> =
         combine(allEvents, uiState) { events, state ->
             events.filter { event ->
-                val date = java.time.Instant.ofEpochMilli(event.dtStart)
-                    .atZone(java.time.ZoneId.of(event.timezone))
-                    .toLocalDate()
+                val date = event.dtStart.toLocalDate(event.timezone)
                 date == state.selectedDate
             }
         }.stateIn(

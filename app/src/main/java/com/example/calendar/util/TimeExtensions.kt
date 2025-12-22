@@ -12,12 +12,21 @@ import java.time.format.DateTimeFormatter
  * 与时间、时区相关的通用扩展函数，集中管理，避免在各个 UI 文件中重复实现。
  */
 
-fun Long.toLocalTime(timezoneId: String): LocalTime {
-    val zoneId = try {
-        ZoneId.of(timezoneId)
+/**
+ * 安全地解析时区ID字符串，如果无效则使用系统默认时区
+ * @param timezoneId 时区ID字符串，如 "Asia/Shanghai"
+ * @return ZoneId对象
+ */
+fun String.toZoneIdSafe(): ZoneId {
+    return try {
+        ZoneId.of(this)
     } catch (_: Exception) {
         ZoneId.systemDefault()
     }
+}
+
+fun Long.toLocalTime(timezoneId: String): LocalTime {
+    val zoneId = timezoneId.toZoneIdSafe()
     return Instant.ofEpochMilli(this)
         .atZone(zoneId)
         .toLocalTime()
@@ -32,12 +41,20 @@ fun LocalDateTime.toMillis(zoneId: ZoneId = ZoneId.systemDefault()): Long {
  * @param timezoneId 时区ID，如 "Asia/Shanghai"，如果为空或无效则使用系统默认时区
  */
 fun LocalDateTime.toMillis(timezoneId: String): Long {
-    val zoneId = try {
-        ZoneId.of(timezoneId)
-    } catch (_: Exception) {
-        ZoneId.systemDefault()
-    }
+    val zoneId = timezoneId.toZoneIdSafe()
     return this.atZone(zoneId).toInstant().toEpochMilli()
+}
+
+/**
+ * 将时间戳转换为LocalDate，使用指定的时区ID字符串
+ * @param timezoneId 时区ID字符串
+ * @return LocalDate对象
+ */
+fun Long.toLocalDate(timezoneId: String): java.time.LocalDate {
+    val zoneId = timezoneId.toZoneIdSafe()
+    return Instant.ofEpochMilli(this)
+        .atZone(zoneId)
+        .toLocalDate()
 }
 
 /**

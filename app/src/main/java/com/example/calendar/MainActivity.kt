@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -30,6 +31,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.AutoMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
@@ -41,7 +49,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -67,6 +79,9 @@ import com.example.calendar.ui.EventEditorDialog
 import com.example.calendar.ui.SubscriptionScreen
 import com.example.calendar.ui.SubscriptionViewModel
 import com.example.calendar.ui.theme.CalendarTheme
+import com.example.calendar.util.ThemeManager
+import com.example.calendar.util.rememberThemeManager
+import com.example.calendar.util.ThemeMode
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -102,7 +117,16 @@ class MainActivity : ComponentActivity() {
         syncSubscriptionsOnStartup(subscriptionRepository)
 
         setContent {
-            CalendarTheme {
+            val themeManager = rememberThemeManager()
+            val systemDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+            var userThemeMode by remember { mutableStateOf(themeManager.getThemeMode()) }
+            
+            // 根据用户主题模式和系统主题计算当前主题
+            val currentDarkTheme = remember(userThemeMode, systemDarkTheme) {
+                com.example.calendar.util.calculateDarkTheme(userThemeMode, systemDarkTheme)
+            }
+            
+            CalendarTheme(darkTheme = currentDarkTheme) {
                 val vm: CalendarViewModel = viewModel(
                     factory = CalendarViewModelFactory(eventRepository, subscriptionRepository)
                 )
@@ -230,6 +254,7 @@ class MainActivity : ComponentActivity() {
                                 
                                 // 右侧三个点菜单 - 显示下拉菜单
                                 var showMenu by remember { mutableStateOf(false) }
+                                var showThemeSubMenu by remember { mutableStateOf(false) }
                                 
                                 Box {
                                     IconButton(onClick = { showMenu = true }) {
@@ -238,30 +263,185 @@ class MainActivity : ComponentActivity() {
                                     
                                     DropdownMenu(
                                         expanded = showMenu,
-                                        onDismissRequest = { showMenu = false }
+                                        onDismissRequest = { 
+                                            showMenu = false
+                                            showThemeSubMenu = false
+                                        },
+                                        modifier = Modifier.padding(4.dp)
                                     ) {
                                         DropdownMenuItem(
-                                            text = { Text("导入 ICS") },
+                                            text = { 
+                                                Text(
+                                                    "导入 ICS",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            },
                                             onClick = {
                                                 showMenu = false
                                                 filePickerLauncher.launch("text/calendar")
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Filled.FileUpload,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("导出为 ICS") },
+                                            text = { 
+                                                Text(
+                                                    "导出为 ICS",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            },
                                             onClick = {
                                                 showMenu = false
                                                 setIcsText(vm.exportSelectedDateEventsAsIcs())
                                                 setIcsDialogVisible(true)
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Filled.FileDownload,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
                                             }
                                         )
                                         DropdownMenuItem(
-                                            text = { Text("订阅管理") },
+                                            text = { 
+                                                Text(
+                                                    "订阅管理",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            },
                                             onClick = {
                                                 showMenu = false
                                                 setShowSubscriptionScreen(true)
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Filled.Settings,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
                                             }
                                         )
+                                        // 主题选项 - 带嵌套子菜单
+                                        Box {
+                                            DropdownMenuItem(
+                                                text = { 
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(
+                                                            "主题",
+                                                            style = MaterialTheme.typography.bodyMedium
+                                                        )
+                                                        Icon(
+                                                            Icons.AutoMirrored.Filled.ArrowForward,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp),
+                                                            tint = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                    }
+                                                },
+                                                onClick = {
+                                                    showThemeSubMenu = true
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        Icons.Filled.Palette,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            )
+                                            
+                                            DropdownMenu(
+                                                expanded = showThemeSubMenu,
+                                                onDismissRequest = { showThemeSubMenu = false },
+                                                modifier = Modifier.padding(4.dp)
+                                            ) {
+                                                // 浅色模式选项
+                                                DropdownMenuItem(
+                                                    text = { 
+                                                        Text(
+                                                            "浅色模式",
+                                                            style = MaterialTheme.typography.bodyMedium
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        showThemeSubMenu = false
+                                                        showMenu = false
+                                                        themeManager.setThemeMode(ThemeMode.LIGHT)
+                                                        userThemeMode = ThemeMode.LIGHT
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            Icons.Filled.LightMode,
+                                                            contentDescription = null,
+                                                            tint = if (userThemeMode == ThemeMode.LIGHT) 
+                                                                MaterialTheme.colorScheme.primary 
+                                                            else 
+                                                                MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                    }
+                                                )
+                                                // 深色模式选项
+                                                DropdownMenuItem(
+                                                    text = { 
+                                                        Text(
+                                                            "深色模式",
+                                                            style = MaterialTheme.typography.bodyMedium
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        showThemeSubMenu = false
+                                                        showMenu = false
+                                                        themeManager.setThemeMode(ThemeMode.DARK)
+                                                        userThemeMode = ThemeMode.DARK
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            Icons.Filled.DarkMode,
+                                                            contentDescription = null,
+                                                            tint = if (userThemeMode == ThemeMode.DARK) 
+                                                                MaterialTheme.colorScheme.primary 
+                                                            else 
+                                                                MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                    }
+                                                )
+                                                // 跟随系统选项
+                                                DropdownMenuItem(
+                                                    text = { 
+                                                        Text(
+                                                            "跟随系统",
+                                                            style = MaterialTheme.typography.bodyMedium
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        showThemeSubMenu = false
+                                                        showMenu = false
+                                                        themeManager.clearThemeMode()
+                                                        userThemeMode = null
+                                                    },
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            Icons.Filled.AutoMode,
+                                                            contentDescription = null,
+                                                            tint = if (userThemeMode == null) 
+                                                                MaterialTheme.colorScheme.primary 
+                                                            else 
+                                                                MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                    }
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             },
@@ -321,16 +501,51 @@ class MainActivity : ComponentActivity() {
                                 setImportConfirmDialogVisible(false)
                                 setPendingIcsContent(null)
                             },
-                            title = { Text(text = "确认导入") },
-                            text = { Text(text = "将导入 $eventCount 个事件，是否继续？") },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    pendingIcsContent?.let { content ->
-                                        vm.importEventsFromIcs(content, onConflict = true)
+                            icon = {
+                                Icon(
+                                    Icons.Filled.FileUpload,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            },
+                            title = { 
+                                Text(
+                                    text = "确认导入",
+                                    style = MaterialTheme.typography.titleLarge
+                                ) 
+                            },
+                            text = { 
+                                Column {
+                                    Text(
+                                        text = if (eventCount > 0) {
+                                            "检测到 ICS 文件中包含 $eventCount 个事件。"
+                                        } else {
+                                            "无法解析 ICS 文件，请确认文件格式是否正确。"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                    if (eventCount > 0) {
+                                        Text(
+                                            text = "是否要导入这些事件？如果存在相同 UID 的事件，将被覆盖。",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
-                                    setImportConfirmDialogVisible(false)
-                                    setPendingIcsContent(null)
-                                }) {
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        pendingIcsContent?.let { content ->
+                                            vm.importEventsFromIcs(content, onConflict = true)
+                                        }
+                                        setImportConfirmDialogVisible(false)
+                                        setPendingIcsContent(null)
+                                    },
+                                    enabled = eventCount > 0
+                                ) {
                                     Text("导入")
                                 }
                             },
@@ -341,61 +556,196 @@ class MainActivity : ComponentActivity() {
                                 }) {
                                     Text("取消")
                                 }
-                            }
+                            },
+                            containerColor = MaterialTheme.colorScheme.surface
                         )
                     }
 
                     // 导入结果对话框
                     uiState.importResult?.let { result ->
+                        val isSuccess = result.errors.isEmpty() && result.imported > 0
                         AlertDialog(
                             onDismissRequest = { vm.clearImportResult() },
-                            title = { Text(text = "导入完成") },
+                            icon = {
+                                Icon(
+                                    Icons.Filled.FileUpload,
+                                    contentDescription = null,
+                                    tint = if (isSuccess) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.error
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            },
+                            title = { 
+                                Text(
+                                    text = if (isSuccess) "导入成功" else "导入完成",
+                                    style = MaterialTheme.typography.titleLarge
+                                ) 
+                            },
                             text = {
                                 Column(
                                     modifier = Modifier
                                         .verticalScroll(rememberScrollState())
-                                        .padding(vertical = 8.dp)
+                                        .padding(vertical = 4.dp)
                                 ) {
-                                    Text(text = "总计: ${result.total} 个事件")
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(text = "成功导入: ${result.imported} 个")
-                                    if (result.skipped > 0) {
-                                        Text(text = "跳过: ${result.skipped} 个")
+                                    // 总体统计
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "${result.total}",
+                                                style = MaterialTheme.typography.headlineSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "总计事件",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "${result.imported}",
+                                                style = MaterialTheme.typography.headlineSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "成功导入",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        if (result.skipped > 0) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "${result.skipped}",
+                                                    style = MaterialTheme.typography.headlineSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Text(
+                                                    text = "跳过",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
                                     }
+                                    
+                                    // 错误信息
                                     if (result.errors.isNotEmpty()) {
                                         Spacer(modifier = Modifier.height(8.dp))
-                                        Text(text = "错误:")
-                                        result.errors.forEach { error ->
+                                        Text(
+                                            text = "错误信息：",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.padding(bottom = 4.dp)
+                                        )
+                                        result.errors.take(5).forEach { error ->
                                             Text(
                                                 text = "• $error",
-                                                modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.padding(start = 8.dp, bottom = 2.dp)
+                                            )
+                                        }
+                                        if (result.errors.size > 5) {
+                                            Text(
+                                                text = "还有 ${result.errors.size - 5} 个错误...",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(start = 8.dp, top = 4.dp)
                                             )
                                         }
                                     }
                                 }
                             },
                             confirmButton = {
-                                TextButton(onClick = { vm.clearImportResult() }) {
+                                Button(onClick = { vm.clearImportResult() }) {
                                     Text("确定")
                                 }
-                            }
+                            },
+                            containerColor = MaterialTheme.colorScheme.surface
                         )
                     }
 
                     // 导出对话框
                     if (icsDialogVisible) {
+                        val eventCount = icsText.split("BEGIN:VEVENT").size - 1
                         AlertDialog(
                             onDismissRequest = { setIcsDialogVisible(false) },
-                            title = { Text(text = "导出为 ICS") },
+                            icon = {
+                                Icon(
+                                    Icons.Filled.FileDownload,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            },
+                            title = { 
+                                Text(
+                                    text = "导出为 ICS",
+                                    style = MaterialTheme.typography.titleLarge
+                                ) 
+                            },
                             text = {
                                 Column {
+                                    // 导出信息提示
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = "共 $eventCount 个事件",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = "ICS 文件内容（可选中复制）",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
+                                    }
+                                    
+                                    // ICS 文本内容
                                     SelectionContainer {
-                                        Text(text = icsText)
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(200.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                            )
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .verticalScroll(rememberScrollState())
+                                            ) {
+                                                Text(
+                                                    text = icsText,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    modifier = Modifier.padding(12.dp),
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             },
                             confirmButton = {
-                                TextButton(onClick = {
+                                Button(onClick = {
                                     val fileName = "calendar_export_${System.currentTimeMillis()}.ics"
                                     fileSaverLauncher.launch(fileName)
                                 }) {
@@ -406,7 +756,8 @@ class MainActivity : ComponentActivity() {
                                 TextButton(onClick = { setIcsDialogVisible(false) }) {
                                     Text("关闭")
                                 }
-                            }
+                            },
+                            containerColor = MaterialTheme.colorScheme.surface
                         )
                     }
 

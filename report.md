@@ -258,7 +258,8 @@ UI 层全部采用 Jetpack Compose 实现：
     - "下一段"按钮（对应地向后一月/一周/一天）；
     - "导入 ICS"按钮（打开文件选择器，选择 `.ics` 文件导入）；
     - "导出为 ICS"按钮（调用 ViewModel 的导出方法，并弹出对话框展示可复制的 `.ics` 文本或保存到文件）；
-    - "订阅管理"按钮（导航到订阅管理界面）。
+    - "订阅管理"按钮（导航到订阅管理界面）；
+    - "主题"按钮（展开子菜单，支持选择浅色模式、深色模式或跟随系统）。
   - 右下角 `FloatingActionButton` 作为新增日程入口；
   - 内容区根据状态条件渲染 `CalendarScreen` 或 `SubscriptionScreen`，以及 `EventEditorDialog`；
   - 使用 `ActivityResultContracts` 处理文件选择和保存操作；
@@ -627,7 +628,7 @@ UI 层全部采用 Jetpack Compose 实现：
   - **列表动画**：LazyColumn 使用 `key` 参数为每个日程项提供唯一标识，支持 Compose 的自动列表动画优化；
   - 所有动画采用统一的时长配置（300ms），确保交互体验的一致性。
 
-- **代码结构优化**：
+  - **代码结构优化**：
   - **共享组件提取**：
     - `CalendarViewFooter`：统一的底部信息栏组件，月视图和周视图复用；
     - `EventItemCard`：统一的事件项卡片组件，替代了 `MonthViewEventItem`、`WeekViewEventItem` 和 `DayEventItem`，减少代码重复约 150-200 行；
@@ -636,17 +637,25 @@ UI 层全部采用 Jetpack Compose 实现：
     - `NavigationIconButton` 和 `ForwardIconButton`：统一的导航按钮组件，提升代码复用性。
   - **数据结构简化**：
     - 将 `EventItemCard` 中的 `Septuple`（七元组）简化为 `Sextuple`（六元组），移除了未使用的 `TextDecoration` 字段，减少约 15 行代码；
-    - 删除了所有未使用的导入（`Instant`、`ZoneId`、`clip`、`TextDecoration`），保持代码库整洁。
+    - 删除了所有未使用的导入（`Instant`、`ZoneId`、`clip`、`TextDecoration`、`LaunchedEffect`），保持代码库整洁。
+  - **主题功能优化**：
+    - 在 `ThemeManager.kt` 中新增 `calculateDarkTheme()` 函数，统一主题计算逻辑，消除重复的 `when` 表达式；
+    - 简化 `MainActivity.kt` 中的主题代码，移除冗余的 `isDarkTheme` 和 `LaunchedEffect`，减少约 15 行代码；
+    - 添加"跟随系统"主题选项，三个主题选项（浅色、深色、跟随系统）整合到一个菜单中，提升用户体验。
+  - **Repository 层优化**：
+    - 在 `EventRepository` 中新增 `getBaseUid()` 辅助函数，统一提取 UID 前缀逻辑，消除 3 处重复代码；
+    - 提升代码可读性和可维护性，减少代码重复。
   - **时区处理优化**：
     - 统一使用系统默认时区（`ZoneId.systemDefault()`）替代硬编码的 "Asia/Shanghai"；
     - 在 `Event.kt`、`EventEditorDialog.kt`、`CalendarViewModel.kt`、`IcsImporter.kt` 中统一使用系统默认时区，提升代码可移植性。
   - **代码清理**：
     - 删除了所有调试日志（`CalendarViewModel.kt` 和 `SubscriptionRepository.kt` 中的 `Log` 调用），减少约 8 行代码；
-    - 移除了未使用的 `Log` 导入，保持代码库整洁。
+    - 移除了未使用的 `Log` 和 `LaunchedEffect` 导入，保持代码库整洁。
   - **工具函数统一管理**：将 `LocalDate.startOfWeek()` 等日期扩展函数集中到 `TimeExtensions.kt`，避免在多个 UI 组件中重复实现，提升代码可维护性；
   - **性能优化**：使用 `remember` 缓存 DateTimeFormatter、农历计算结果等重复创建的对象，避免不必要的重新计算；
   - **代码质量提升**：清理不必要的导入和空行，删除未使用的文件（如 `SubscriptionEditorDialog.kt`），保持代码库整洁；
   - 移除了冗余的辅助函数（如 `normalizeToMondayFirst()`），简化日期计算逻辑。
+  - **最新优化成果**：累计减少冗余代码约 296-306 行（包括主题逻辑优化、Repository 优化等最新优化）。
 
 ### 11. 代码质量与最佳实践
 
@@ -697,7 +706,7 @@ UI 层全部采用 Jetpack Compose 实现：
 
 - **架构优化**：提取重复逻辑为通用函数，统一管理工具函数，统一时区处理（使用系统默认时区），提升代码可维护性和可扩展性。
 
-### 14. 日程状态样式优化与天气订阅增强
+### 15. 日程状态样式优化与天气订阅增强
 
 最新版本对日程展示和天气订阅功能进行了全面优化：
 
@@ -756,7 +765,8 @@ UI 层全部采用 Jetpack Compose 实现：
 8. **增强的提醒功能**：支持提前提醒（五分钟、十五分钟、三十分钟、一小时）和响铃提醒（已完全实现并优化，支持声音、震动和灯光控制），**新建日程时默认开启提醒并默认选择5分钟，且"五分钟"选项默认选中并高亮显示**，提供快速选择选项，满足不同场景的提醒需求。**修复了响铃逻辑，确保只有开启响铃开关时才会响铃**。每个重复事件都有独立的提醒设置，确保提醒的准确性
 9. **响应式架构**：利用 Kotlin Flow 和 Compose 实现自动 UI 更新，提升开发效率和用户体验
 10. **一致性保证**：数据库与系统提醒状态保持严格一致，避免数据不一致问题
-11. **代码质量与架构优化**：遵循最佳实践，提取共享组件（包括 `CalendarTopBarTitle`、`NavigationIconButton`、`ForwardIconButton`），统一时间格式化器，统一时区处理（使用系统默认时区），简化数据结构（移除未使用的 `TextDecoration`），删除调试日志，累计减少冗余代码约 276-286 行，提升可维护性和可扩展性
+11. **代码质量与架构优化**：遵循最佳实践，提取共享组件（包括 `CalendarTopBarTitle`、`NavigationIconButton`、`ForwardIconButton`），统一时间格式化器，统一时区处理（使用系统默认时区），简化数据结构（移除未使用的 `TextDecoration`），删除调试日志，优化主题逻辑和 Repository 层代码，累计减少冗余代码约 296-306 行，提升可维护性和可扩展性
+12. **主题功能增强**：实现了完整的主题切换功能，支持浅色模式、深色模式和跟随系统三种选项，三个选项整合到一个菜单中，提供流畅的主题切换体验
 
 ### 应用场景：
 

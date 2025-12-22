@@ -2,6 +2,7 @@ package com.example.calendar.data
 
 import com.example.calendar.reminder.ReminderScheduler
 import com.example.calendar.util.IcsImporter
+import com.example.calendar.util.toZoneIdSafe
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.time.LocalDate
@@ -21,6 +22,13 @@ class EventRepository(
     private val reminderDao: ReminderDao,
     private val reminderScheduler: ReminderScheduler
 ) {
+    
+    /**
+     * 提取事件的 UID 前缀（用于识别重复事件组）
+     */
+    private fun getBaseUid(uid: String): String {
+        return uid.split("_").firstOrNull() ?: uid
+    }
 
     fun getAllEvents(): Flow<List<Event>> = eventDao.getAllEvents()
 
@@ -45,7 +53,7 @@ class EventRepository(
         reminderMinutes: Int?,
         repeatCount: Int = 0
     ): Long {
-        val zoneId = ZoneId.of(event.timezone)
+        val zoneId = event.timezone.toZoneIdSafe()
         val startDateTime = Instant.ofEpochMilli(event.dtStart).atZone(zoneId).toLocalDateTime()
         val endDateTime = Instant.ofEpochMilli(event.dtEnd).atZone(zoneId).toLocalDateTime()
         val duration = ChronoUnit.MINUTES.between(startDateTime, endDateTime)
@@ -65,7 +73,7 @@ class EventRepository(
         if (event.id != 0L) {
             // 查找所有相关的重复事件（通过 UID 前缀匹配）
             val existingEvents = eventDao.getAllEventsOnce()
-            val baseUid = event.uid.split("_").firstOrNull() ?: event.uid
+            val baseUid = getBaseUid(event.uid)
             val relatedEvents = existingEvents.filter { 
                 (it.uid == event.uid || it.uid.startsWith("${baseUid}_")) && it.id != event.id
             }
@@ -152,7 +160,7 @@ class EventRepository(
         zoneId: ZoneId
     ): List<Event> {
         val events = mutableListOf<Event>()
-        val baseUid = baseEvent.uid.split("_").firstOrNull() ?: baseEvent.uid
+        val baseUid = getBaseUid(baseEvent.uid)
         var currentDateTime = startDateTime
         val maxEvents = 365 // 最多生成365个重复事件
         
@@ -184,13 +192,12 @@ class EventRepository(
     suspend fun deleteEventWithReminders(event: Event) {
         // 如果是重复事件，删除所有相关的重复事件
         // 通过 UID 前缀匹配找到所有相关的重复事件
-        val baseUid = event.uid.split("_").firstOrNull() ?: event.uid
+        val baseUid = getBaseUid(event.uid)
         val allEvents = eventDao.getAllEventsOnce()
         
         // 找到所有相关的重复事件（UID 相同或以前缀开头）
         val relatedEvents = allEvents.filter { 
-            val itBaseUid = it.uid.split("_").firstOrNull() ?: it.uid
-            itBaseUid == baseUid
+            getBaseUid(it.uid) == baseUid
         }
         
         // 删除所有相关事件的提醒和系统闹钟

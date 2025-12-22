@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.calendar.data.Event
 import com.example.calendar.util.startOfWeek
+import com.example.calendar.util.toLocalDate
 import java.time.LocalDate
 
 @Composable
@@ -65,9 +66,7 @@ fun WeekView(
                 val isToday = date == LocalDate.now()
                 // 检查该日期是否有事件
                 val hasEvents = allEvents.any { event ->
-                    val eventDate = java.time.Instant.ofEpochMilli(event.dtStart)
-                        .atZone(java.time.ZoneId.of(event.timezone))
-                        .toLocalDate()
+                    val eventDate = event.dtStart.toLocalDate(event.timezone)
                     eventDate == date
                 }
 
