@@ -55,7 +55,7 @@ fun CalendarEventList(
                 formatter = timeFormatter,
                 onClick = { onEventClick(event) },
                 modifier = Modifier.padding(vertical = 4.dp),
-                showDetails = false
+                showDetails = true  // 显示详细信息包括备注
             )
         }
     }

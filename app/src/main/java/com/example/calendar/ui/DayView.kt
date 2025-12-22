@@ -51,26 +51,36 @@ fun DayView(
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        // 显示农历信息
-        LunarInfoCard(date = date)
-
-        Spacer(modifier = Modifier.height(8.dp))
-
         if (events.isEmpty() && subscriptionEvents.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "今天没有日程",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            LazyColumn {
+                // 农历信息卡片放在 LazyColumn 中，支持滑动
+                item {
+                    LunarInfoCard(date = date)
+                }
+                
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "今天没有日程",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         } else {
             LazyColumn {
+                // 农历信息卡片放在 LazyColumn 中，支持滑动
+                item {
+                    LunarInfoCard(date = date)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                
                 // 订阅事件
                 items(
                     items = subscriptionEvents,

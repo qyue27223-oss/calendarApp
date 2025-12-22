@@ -3,7 +3,6 @@ package com.example.calendar.data
 import com.example.calendar.reminder.ReminderScheduler
 import com.example.calendar.util.IcsImporter
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.firstOrNull
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -65,7 +64,7 @@ class EventRepository(
         // 如果是编辑模式，先删除所有相关的重复事件
         if (event.id != 0L) {
             // 查找所有相关的重复事件（通过 UID 前缀匹配）
-            val existingEvents = getAllEvents().firstOrNull() ?: emptyList()
+            val existingEvents = eventDao.getAllEventsOnce()
             val baseUid = event.uid.split("_").firstOrNull() ?: event.uid
             val relatedEvents = existingEvents.filter { 
                 (it.uid == event.uid || it.uid.startsWith("${baseUid}_")) && it.id != event.id
@@ -186,7 +185,7 @@ class EventRepository(
         // 如果是重复事件，删除所有相关的重复事件
         // 通过 UID 前缀匹配找到所有相关的重复事件
         val baseUid = event.uid.split("_").firstOrNull() ?: event.uid
-        val allEvents = getAllEvents().firstOrNull() ?: emptyList()
+        val allEvents = eventDao.getAllEventsOnce()
         
         // 找到所有相关的重复事件（UID 相同或以前缀开头）
         val relatedEvents = allEvents.filter { 

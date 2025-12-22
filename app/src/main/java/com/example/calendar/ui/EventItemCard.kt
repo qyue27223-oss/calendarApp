@@ -15,6 +15,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.calendar.data.Event
 import com.example.calendar.util.toLocalTime
+import kotlinx.coroutines.delay
 import java.time.format.DateTimeFormatter
 
 /**
@@ -48,10 +54,10 @@ enum class EventStatus {
 /**
  * 判断日程状态
  * 注意：时间戳都是UTC的，可以直接比较，不需要时区转换
+ * @param event 事件对象
+ * @param currentTime 当前时间戳（用于测试和定期更新）
  */
-private fun getEventStatus(event: Event): EventStatus {
-    val now = System.currentTimeMillis()
-    
+private fun getEventStatus(event: Event, currentTime: Long = System.currentTimeMillis()): EventStatus {
     // 直接比较时间戳（都是UTC，可以直接比较）
     // 注意：必须确保结束时间 >= 开始时间，否则数据异常
     if (event.dtEnd < event.dtStart) {
@@ -65,9 +71,9 @@ private fun getEventStatus(event: Event): EventStatus {
     // 3. 如果当前时间 < 开始时间 -> 待办（事件还未开始）
     return when {
         // 结束时间已过当前时间 -> 已完成
-        event.dtEnd < now -> EventStatus.COMPLETED
+        event.dtEnd < currentTime -> EventStatus.COMPLETED
         // 开始时间已过或等于当前时间，且结束时间还未到 -> 进行中
-        event.dtStart <= now && event.dtEnd > now -> EventStatus.IN_PROGRESS
+        event.dtStart <= currentTime && event.dtEnd > currentTime -> EventStatus.IN_PROGRESS
         // 开始时间还未到 -> 待办
         else -> EventStatus.UPCOMING
     }
@@ -90,7 +96,17 @@ fun EventItemCard(
     modifier: Modifier = Modifier,
     showDetails: Boolean = false
 ) {
-    val status = getEventStatus(event)
+    // 添加定期更新机制，每30秒更新一次状态，实现动态状态更新
+    var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000L) // 每30秒更新一次
+            currentTime = System.currentTimeMillis()
+        }
+    }
+    
+    val status = getEventStatus(event, currentTime)
     
     // 根据状态设置不同的颜色和样式
     val (accentColor, containerColor, textColor, borderColor, badgeText, badgeColor) = when (status) {

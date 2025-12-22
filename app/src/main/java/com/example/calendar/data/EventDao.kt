@@ -29,6 +29,9 @@ interface EventDao {
     @Query("SELECT * FROM events WHERE uid = :uid LIMIT 1")
     suspend fun getEventByUid(uid: String): Event?
 
+    @Query("SELECT * FROM events ORDER BY dtStart ASC")
+    suspend fun getAllEventsOnce(): List<Event>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvent(event: Event): Long
 

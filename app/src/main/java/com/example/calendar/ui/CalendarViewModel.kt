@@ -231,7 +231,12 @@ class CalendarViewModel(
 
     fun saveEvent(event: Event, reminderMinutes: Int?, repeatCount: Int = 0) {
         viewModelScope.launch {
-            repository.upsertEventWithReminder(event, reminderMinutes, repeatCount)
+            try {
+                repository.upsertEventWithReminder(event, reminderMinutes, repeatCount)
+            } catch (e: Exception) {
+                // 记录错误，避免应用崩溃
+                e.printStackTrace()
+            }
         }
     }
 
