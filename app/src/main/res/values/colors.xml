@@ -1,3 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="black">#FF000000</color>
+    <!-- 启动画面深色背景，与自定义启动画面的渐变起始色接近 -->
+    <color name="splash_dark_bg">#FF1a1a2e</color>
 </resources>

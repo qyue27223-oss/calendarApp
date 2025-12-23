@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Calendar" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Calendar" parent="android:Theme.Material.Light.NoActionBar">
+    </style>
+    
+    <!-- 启动画面主题 - 系统启动画面背景与自定义启动画面一致 -->
+    <style name="Theme.Calendar.Splash" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/splash_dark_bg</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <!-- 系统启动画面：使用与自定义启动画面相同的深色背景，透明图标使其不可见 -->
+        <item name="android:windowSplashScreenBackground">@color/splash_dark_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_transparent</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/splash_dark_bg</item>
+    </style>
 </resources>
