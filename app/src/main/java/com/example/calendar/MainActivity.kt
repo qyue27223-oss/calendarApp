@@ -15,21 +15,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.RadioButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -53,14 +43,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.TopAppBar
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -78,8 +61,6 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.viewmodel.compose.viewModel
-import java.time.temporal.WeekFields
-import java.util.Locale
 import com.example.calendar.data.EventRepository
 import com.example.calendar.data.SubscriptionRepository
 import com.example.calendar.ui.CalendarViewMode
@@ -88,17 +69,19 @@ import com.example.calendar.ui.SubscriptionViewModel
 import com.example.calendar.ui.CalendarScreen
 import com.example.calendar.ui.EventEditorDialog
 import com.example.calendar.ui.SubscriptionScreen
+import com.example.calendar.ui.ImportConfirmDialog
+import com.example.calendar.ui.ImportResultDialog
+import com.example.calendar.ui.ExportOptionsDialog
+import com.example.calendar.ui.DateRangePickerDialog
+import com.example.calendar.ui.ExportConfirmDialog
 import com.example.calendar.ui.theme.CalendarTheme
 import com.example.calendar.util.ThemeMode
 import com.example.calendar.util.rememberThemeManager
 import com.example.calendar.util.IcsImporter
 import com.example.calendar.util.calculateDarkTheme
 import com.example.calendar.util.formatDate
-import com.example.calendar.util.formatTime
+import com.example.calendar.util.getWeekNumber
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
 import java.io.InputStream
 
 class MainActivity : ComponentActivity() {
@@ -152,16 +135,14 @@ class MainActivity : ComponentActivity() {
                 val snackbarHostState = remember { SnackbarHostState() }
                 val scope = rememberCoroutineScope()
                 val context = LocalContext.current
-                
-                // 订阅同步结果提示已移除（使用自动同步机制）
 
                 // 文件选择器（用于导入）
                 val filePickerLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.GetContent()
                 ) { uri ->
-                    uri?.let {
+                    uri?.let { selectedUri ->
                         try {
-                            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
+                            val inputStream: InputStream? = context.contentResolver.openInputStream(selectedUri)
                             inputStream?.use { stream ->
                                 val content = stream.bufferedReader().use { it.readText() }
                                 setPendingIcsContent(content)
@@ -565,763 +546,115 @@ class MainActivity : ComponentActivity() {
                     }
                     
                     // 导入确认对话框
-                    if (importConfirmDialogVisible && pendingIcsContent != null && pendingImportEvents.isNotEmpty()) {
-                        AlertDialog(
-                            onDismissRequest = { 
-                                setImportConfirmDialogVisible(false)
-                                setPendingIcsContent(null)
-                                setPendingImportEvents(emptyList())
-                            },
-                            icon = {
-                                Icon(
-                                    Icons.Filled.FileUpload,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            },
-                            title = { 
-                                Text(
-                                    text = "确认导入日程",
-                                    style = MaterialTheme.typography.titleLarge
-                                ) 
-                            },
-                            text = { 
-                                Column(
-                                    modifier = Modifier.verticalScroll(rememberScrollState())
-                                ) {
-                                    Text(
-                                        text = "检测到 ${pendingImportEvents.size} 个日程，预览如下：",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        modifier = Modifier.padding(bottom = 12.dp),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    
-                                    // 显示前5个日程预览
-                                    pendingImportEvents.take(5).forEachIndexed { index, event ->
-                                        Card(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(bottom = 8.dp),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                            )
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.padding(12.dp)
-                                            ) {
-                                                Text(
-                                                    text = event.summary,
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(bottom = 4.dp)
-                                                )
-                                                val startDateTime = java.time.Instant.ofEpochMilli(event.dtStart)
-                                                    .atZone(java.time.ZoneId.systemDefault())
-                                                    .toLocalDateTime()
-                                                Text(
-                                                    text = "${startDateTime.formatDate()} ${startDateTime.formatTime()}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                event.location?.let { location ->
-                                                    Text(
-                                                        text = "地点：$location",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.padding(top = 2.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                    
-                                    if (pendingImportEvents.size > 5) {
-                                        Text(
-                                            text = "还有 ${pendingImportEvents.size - 5} 个日程...",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        )
-                                    }
-                                    
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    
-                                    // 冲突处理选项
-                                    Text(
-                                        text = "冲突处理方式：",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                    
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { setImportConflictStrategy(true) }
-                                            .padding(vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        RadioButton(
-                                            selected = importConflictStrategy,
-                                            onClick = { setImportConflictStrategy(true) }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "覆盖已有日程",
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
-                                            Text(
-                                                text = "如果存在相同 ID 的日程，将用新日程替换",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                    
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { setImportConflictStrategy(false) }
-                                            .padding(vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        RadioButton(
-                                            selected = !importConflictStrategy,
-                                            onClick = { setImportConflictStrategy(false) }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "跳过已有日程",
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
-                                            Text(
-                                                text = "如果存在相同 ID 的日程，将保留原有日程",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                Button(
-                                    onClick = {
-                                        vm.importEventsFromIcs(pendingIcsContent, onConflict = importConflictStrategy)
-                                        setImportConfirmDialogVisible(false)
-                                        setPendingIcsContent(null)
-                                        setPendingImportEvents(emptyList())
-                                    }
-                                ) {
-                                    Text("确认导入")
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = {
-                                    setImportConfirmDialogVisible(false)
-                                    setPendingIcsContent(null)
-                                    setPendingImportEvents(emptyList())
-                                }) {
-                                    Text("取消")
-                                }
-                            },
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
-                    }
+                    ImportConfirmDialog(
+                        visible = importConfirmDialogVisible && pendingIcsContent != null && pendingImportEvents.isNotEmpty(),
+                        pendingEvents = pendingImportEvents,
+                        conflictStrategy = importConflictStrategy,
+                        onConflictStrategyChange = { setImportConflictStrategy(it) },
+                        onConfirm = {
+                            vm.importEventsFromIcs(pendingIcsContent!!, onConflict = importConflictStrategy)
+                            setImportConfirmDialogVisible(false)
+                            setPendingIcsContent(null)
+                            setPendingImportEvents(emptyList())
+                        },
+                        onDismiss = {
+                            setImportConfirmDialogVisible(false)
+                            setPendingIcsContent(null)
+                            setPendingImportEvents(emptyList())
+                        }
+                    )
 
                     // 导入结果对话框
                     uiState.importResult?.let { result ->
-                        val isSuccess = result.errors.isEmpty() && result.imported > 0
-                        AlertDialog(
-                            onDismissRequest = { vm.clearImportResult() },
-                            icon = {
-                                Icon(
-                                    Icons.Filled.FileUpload,
-                                    contentDescription = null,
-                                    tint = if (isSuccess) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.error
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            },
-                            title = { 
-                                Text(
-                                    text = if (isSuccess) "导入成功" else "导入完成",
-                                    style = MaterialTheme.typography.titleLarge
-                                ) 
-                            },
-                            text = {
-                                Column(
-                                    modifier = Modifier
-                                        .verticalScroll(rememberScrollState())
-                                        .padding(vertical = 4.dp)
-                                ) {
-                                    // 友好的统计信息
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                                        )
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(16.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Column {
-                                                    Text(
-                                                        text = "${result.imported}",
-                                                        style = MaterialTheme.typography.headlineMedium,
-                                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(
-                                                        text = "成功导入",
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                    )
-                                                }
-                                                if (result.skipped > 0) {
-                                                    Column {
-                                                        Text(
-                                                            text = "${result.skipped}",
-                                                            style = MaterialTheme.typography.headlineMedium,
-                                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                        )
-                                                        Text(
-                                                            text = "已跳过",
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                                        )
-                                                    }
-                                                }
-                                                if (result.total > result.imported + result.skipped) {
-                                                    Column {
-                                                        Text(
-                                                            text = "${result.total - result.imported - result.skipped}",
-                                                            style = MaterialTheme.typography.headlineMedium,
-                                                            color = MaterialTheme.colorScheme.error
-                                                        )
-                                                        Text(
-                                                            text = "失败",
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            color = MaterialTheme.colorScheme.error
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    
-                                    // 错误信息（仅在出错时显示）
-                                    if (result.errors.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Text(
-                                            text = "部分日程导入失败：",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.padding(bottom = 4.dp)
-                                        )
-                                        result.errors.take(3).forEach { error ->
-                                            Text(
-                                                text = "• ${error.replace("导入事件失败 (UID: ", "").replace("): .*$".toRegex(), "")}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(start = 8.dp, bottom = 2.dp)
-                                            )
-                                        }
-                                        if (result.errors.size > 3) {
-                                            Text(
-                                                text = "还有 ${result.errors.size - 3} 个错误...",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(start = 8.dp, top = 4.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                Button(onClick = { vm.clearImportResult() }) {
-                                    Text("确定")
-                                }
-                            },
-                            containerColor = MaterialTheme.colorScheme.surface
+                        ImportResultDialog(
+                            result = result,
+                            onDismiss = { vm.clearImportResult() }
                         )
                     }
 
                     // 日期范围选择对话框
-                    if (showDateRangePickerDialog) {
-                        var tempStartDate by remember { mutableStateOf(dateRangeStart) }
-                        var tempEndDate by remember { mutableStateOf(dateRangeEnd) }
-                        val dateRangeEventsCount = remember(tempStartDate, tempEndDate, allEvents) {
-                            val systemZoneId = java.time.ZoneId.systemDefault()
-                            val startTime = tempStartDate.atStartOfDay(systemZoneId).toInstant().toEpochMilli()
-                            val endTime = tempEndDate.plusDays(1).atStartOfDay(systemZoneId).toInstant().toEpochMilli()
-                            allEvents.count { event ->
-                                event.dtStart >= startTime && event.dtStart < endTime
-                            }
+                    val dateRangeEventsCount = remember(dateRangeStart, dateRangeEnd, allEvents) {
+                        val systemZoneId = java.time.ZoneId.systemDefault()
+                        val startTime = dateRangeStart.atStartOfDay(systemZoneId).toInstant().toEpochMilli()
+                        val endTime = dateRangeEnd.plusDays(1).atStartOfDay(systemZoneId).toInstant().toEpochMilli()
+                        allEvents.count { event ->
+                            event.dtStart >= startTime && event.dtStart < endTime
                         }
-                        
-                        AlertDialog(
-                            onDismissRequest = { setShowDateRangePickerDialog(false) },
-                            icon = {
-                                Icon(
-                                    Icons.Filled.FileDownload,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            },
-                            title = { 
-                                Text(
-                                    text = "选择日期范围",
-                                    style = MaterialTheme.typography.titleLarge
-                                ) 
-                            },
-                            text = {
-                                Column {
-                                    // 开始日期选择
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(16.dp)
-                                        ) {
-                                            Text(
-                                                text = "开始日期",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(bottom = 8.dp)
-                                            )
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                IconButton(
-                                                    onClick = { tempStartDate = tempStartDate.minusDays(1) }
-                                                ) {
-                                                    Icon(
-                                                        Icons.AutoMirrored.Filled.ArrowBack,
-                                                        contentDescription = "前一天"
-                                                    )
-                                                }
-                                                Text(
-                                                    text = tempStartDate.formatDate(),
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    modifier = Modifier.weight(1f),
-                                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                                )
-                                                IconButton(
-                                                    onClick = { 
-                                                        tempStartDate = tempStartDate.plusDays(1)
-                                                        if (tempStartDate > tempEndDate) {
-                                                            tempEndDate = tempStartDate
-                                                        }
-                                                    }
-                                                ) {
-                                                    Icon(
-                                                        Icons.AutoMirrored.Filled.ArrowForward,
-                                                        contentDescription = "后一天"
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                    
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    
-                                    // 结束日期选择
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(16.dp)
-                                        ) {
-                                            Text(
-                                                text = "结束日期",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(bottom = 8.dp)
-                                            )
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                IconButton(
-                                                    onClick = { 
-                                                        tempEndDate = tempEndDate.minusDays(1)
-                                                        if (tempEndDate < tempStartDate) {
-                                                            tempStartDate = tempEndDate
-                                                        }
-                                                    },
-                                                    enabled = tempEndDate > tempStartDate
-                                                ) {
-                                                    Icon(
-                                                        Icons.AutoMirrored.Filled.ArrowBack,
-                                                        contentDescription = "前一天"
-                                                    )
-                                                }
-                                                Text(
-                                                    text = tempEndDate.formatDate(),
-                                                    style = MaterialTheme.typography.bodyLarge,
-                                                    modifier = Modifier.weight(1f),
-                                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                                )
-                                                IconButton(
-                                                    onClick = { tempEndDate = tempEndDate.plusDays(1) }
-                                                ) {
-                                                    Icon(
-                                                        Icons.AutoMirrored.Filled.ArrowForward,
-                                                        contentDescription = "后一天"
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                    
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    
-                                    Text(
-                                        text = "此日期范围内共有 $dateRangeEventsCount 个日程",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    
-                                    if (tempStartDate > tempEndDate) {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = "⚠ 开始日期不能晚于结束日期",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                Button(
-                                    onClick = {
-                                        if (tempStartDate <= tempEndDate && dateRangeEventsCount > 0) {
-                                            val icsContent = vm.exportEventsAsIcs(tempStartDate, tempEndDate)
-                                            setExportIcsText(icsContent)
-                                            setExportEventCount(dateRangeEventsCount)
-                                            setExportDateRange("${tempStartDate.formatDate()} 至 ${tempEndDate.formatDate()}")
-                                            setDateRangeStart(tempStartDate)
-                                            setDateRangeEnd(tempEndDate)
-                                            setShowDateRangePickerDialog(false)
-                                            setExportDialogVisible(true)
-                                        }
-                                    },
-                                    enabled = tempStartDate <= tempEndDate && dateRangeEventsCount > 0
-                                ) {
-                                    Text("确定")
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { setShowDateRangePickerDialog(false) }) {
-                                    Text("取消")
-                                }
-                            },
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
                     }
+                    
+                    DateRangePickerDialog(
+                        visible = showDateRangePickerDialog,
+                        startDate = dateRangeStart,
+                        endDate = dateRangeEnd,
+                        eventsCount = dateRangeEventsCount,
+                        onStartDateChange = { setDateRangeStart(it) },
+                        onEndDateChange = { setDateRangeEnd(it) },
+                        onConfirm = {
+                            val icsContent = vm.exportEventsAsIcs(dateRangeStart, dateRangeEnd)
+                            setExportIcsText(icsContent)
+                            setExportEventCount(dateRangeEventsCount)
+                            setExportDateRange("${dateRangeStart.formatDate()} 至 ${dateRangeEnd.formatDate()}")
+                            setShowDateRangePickerDialog(false)
+                            setExportDialogVisible(true)
+                        },
+                        onDismiss = { setShowDateRangePickerDialog(false) }
+                    )
 
                     // 导出选项对话框
-                    if (showExportOptionsDialog) {
-                        var selectedExportOption by remember { mutableStateOf(0) } // 0: 当前日期, 1: 日期范围, 2: 全部
-                        AlertDialog(
-                            onDismissRequest = { setShowExportOptionsDialog(false) },
-                            icon = {
-                                Icon(
-                                    Icons.Filled.FileDownload,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            },
-                            title = { 
-                                Text(
-                                    text = "导出日程",
-                                    style = MaterialTheme.typography.titleLarge
-                                ) 
-                            },
-                            text = {
-                                Column {
-                                    // 导出选项
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { selectedExportOption = 0 }
-                                            .padding(vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        RadioButton(
-                                            selected = selectedExportOption == 0,
-                                            onClick = { selectedExportOption = 0 }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "当前选中日期",
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                            Text(
-                                                text = "${uiState.selectedDate.formatDate()} 的所有日程",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        if (eventsForSelectedDate.isNotEmpty()) {
-                                            Text(
-                                                text = "${eventsForSelectedDate.size} 个",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        } else {
-                                            Text(
-                                                text = "无日程",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontStyle = FontStyle.Italic
-                                            )
-                                        }
-                                    }
-                                    
-                                    if (eventsForSelectedDate.isEmpty() && selectedExportOption == 0) {
-                                        Text(
-                                            text = "当前日期没有日程可导出",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.padding(start = 48.dp, top = 4.dp)
-                                        )
-                                    }
-                                    
-                                    HorizontalDivider()
-                                    
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { selectedExportOption = 1 }
-                                            .padding(vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        RadioButton(
-                                            selected = selectedExportOption == 1,
-                                            onClick = { selectedExportOption = 1 }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "自定义日期范围",
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                            Text(
-                                                text = "选择开始和结束日期",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                    
-                                    HorizontalDivider()
-                                    
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { selectedExportOption = 2 }
-                                            .padding(vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        RadioButton(
-                                            selected = selectedExportOption == 2,
-                                            onClick = { selectedExportOption = 2 }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "所有日程",
-                                                style = MaterialTheme.typography.bodyLarge
-                                            )
-                                            Text(
-                                                text = "导出所有已保存的日程",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                        if (allEvents.isNotEmpty()) {
-                                            Text(
-                                                text = "${allEvents.size} 个",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        } else {
-                                            Text(
-                                                text = "无日程",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontStyle = FontStyle.Italic
-                                            )
-                                        }
-                                    }
-                                    
-                                    if (allEvents.isEmpty() && selectedExportOption == 2) {
-                                        Text(
-                                            text = "当前没有日程可导出",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.padding(start = 48.dp, top = 4.dp)
-                                        )
-                                    }
+                    ExportOptionsDialog(
+                        visible = showExportOptionsDialog,
+                        selectedDate = uiState.selectedDate,
+                        eventsForSelectedDate = eventsForSelectedDate,
+                        allEvents = allEvents,
+                        onOptionSelected = { option ->
+                            when (option) {
+                                0 -> {
+                                    // 当前日期
+                                    val events = eventsForSelectedDate
+                                    val icsContent = vm.exportSelectedDateEventsAsIcs()
+                                    setExportIcsText(icsContent)
+                                    setExportEventCount(events.size)
+                                    setExportDateRange(uiState.selectedDate.formatDate())
+                                    setShowExportOptionsDialog(false)
+                                    setExportDialogVisible(true)
                                 }
-                            },
-                            confirmButton = {
-                                Button(
-                                    onClick = {
-                                        when (selectedExportOption) {
-                                            0 -> {
-                                                // 当前日期
-                                                val events = eventsForSelectedDate
-                                                val icsContent = vm.exportSelectedDateEventsAsIcs()
-                                                setExportIcsText(icsContent)
-                                                setExportEventCount(events.size)
-                                                setExportDateRange(uiState.selectedDate.formatDate())
-                                                setShowExportOptionsDialog(false)
-                                                setExportDialogVisible(true)
-                                            }
-                                            1 -> {
-                                                // 自定义日期范围 - 打开日期范围选择器
-                                                setShowExportOptionsDialog(false)
-                                                setShowDateRangePickerDialog(true)
-                                            }
-                                            else -> {
-                                                // 所有日程
-                                                val icsContent = vm.exportAllEventsAsIcs()
-                                                setExportIcsText(icsContent)
-                                                setExportEventCount(allEvents.size)
-                                                setExportDateRange(null)
-                                                setShowExportOptionsDialog(false)
-                                                setExportDialogVisible(true)
-                                            }
-                                        }
-                                    },
-                                    enabled = when (selectedExportOption) {
-                                        0 -> eventsForSelectedDate.isNotEmpty()
-                                        1 -> true // 日期范围总是可用
-                                        else -> allEvents.isNotEmpty()
-                                    }
-                                ) {
-                                    Text("下一步")
+                                1 -> {
+                                    // 自定义日期范围 - 打开日期范围选择器
+                                    setShowExportOptionsDialog(false)
+                                    setShowDateRangePickerDialog(true)
                                 }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { setShowExportOptionsDialog(false) }) {
-                                    Text("取消")
+                                else -> {
+                                    // 所有日程
+                                    val icsContent = vm.exportAllEventsAsIcs()
+                                    setExportIcsText(icsContent)
+                                    setExportEventCount(allEvents.size)
+                                    setExportDateRange(null)
+                                    setShowExportOptionsDialog(false)
+                                    setExportDialogVisible(true)
                                 }
-                            },
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
-                    }
+                            }
+                        },
+                        onDismiss = { setShowExportOptionsDialog(false) }
+                    )
 
                     // 导出确认对话框
-                    if (exportDialogVisible && exportIcsText.isNotEmpty()) {
-                        val fileName = if (exportDateRange != null) {
-                            "日程_${exportDateRange}.ics"
-                        } else {
-                            "日程_全部_${java.time.LocalDate.now().formatDate()}.ics"
-                        }
-                        
-                        AlertDialog(
-                            onDismissRequest = { setExportDialogVisible(false) },
-                            icon = {
-                                Icon(
-                                    Icons.Filled.FileDownload,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            },
-                            title = { 
-                                Text(
-                                    text = "准备导出",
-                                    style = MaterialTheme.typography.titleLarge
-                                ) 
-                            },
-                            text = {
-                                Column {
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                                        )
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(16.dp)
-                                        ) {
-                                            Text(
-                                                text = "共 ${exportEventCount} 个日程",
-                                                style = MaterialTheme.typography.headlineSmall,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            if (exportDateRange != null) {
-                                                Text(
-                                                    text = "日期：$exportDateRange",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                    modifier = Modifier.padding(top = 4.dp)
-                                                )
-                                            } else {
-                                                Text(
-                                                    text = "包含所有已保存的日程",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                    modifier = Modifier.padding(top = 4.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = "文件将保存为：$fileName",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            },
-                            confirmButton = {
-                                Button(
-                                    onClick = {
-                                        fileSaverLauncher.launch(fileName)
-                                        setExportDialogVisible(false)
-                                    }
-                                ) {
-                                    Text("保存文件")
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { setExportDialogVisible(false) }) {
-                                    Text("取消")
-                                }
-                            },
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
+                    val exportFileName = if (exportDateRange != null) {
+                        "日程_${exportDateRange}.ics"
+                    } else {
+                        "日程_全部_${java.time.LocalDate.now().formatDate()}.ics"
                     }
+                    
+                    ExportConfirmDialog(
+                        visible = exportDialogVisible && exportIcsText.isNotEmpty(),
+                        eventCount = exportEventCount,
+                        dateRange = exportDateRange,
+                        fileName = exportFileName,
+                        onConfirm = {
+                            fileSaverLauncher.launch(exportFileName)
+                            setExportDialogVisible(false)
+                        },
+                        onDismiss = { setExportDialogVisible(false) }
+                    )
 
                     EventEditorDialog(
                         visible = uiState.isEditing,
@@ -1371,14 +704,6 @@ class SubscriptionViewModelFactory(
 }
 
 private const val REMINDER_CHANNEL_ID = "calendar_reminders"
-
-/**
- * 计算日期所在的一年中的周数
- */
-private fun getWeekNumber(date: java.time.LocalDate): Int {
-    val weekFields = WeekFields.of(Locale.getDefault())
-    return date.get(weekFields.weekOfWeekBasedYear())
-}
 
 /**
  * 导航图标按钮组件
@@ -1456,7 +781,7 @@ private fun CalendarTopBarTitle(
                         text = "${selectedDate.year}年${selectedDate.monthValue}月",
                         style = MaterialTheme.typography.titleLarge
                     )
-                    val weekNumber = getWeekNumber(selectedDate)
+                    val weekNumber = selectedDate.getWeekNumber()
                     Text(
                         text = "第${weekNumber}周",
                         style = MaterialTheme.typography.bodyMedium,
@@ -1494,21 +819,4 @@ private fun MainActivity.createNotificationChannel() {
     val notificationManager: NotificationManager =
         getSystemService(NotificationManager::class.java)
     notificationManager.createNotificationChannel(channel)
-}
-
-/**
- * 应用启动时检查并同步订阅数据（超过24小时则同步）
- * 用户可以在订阅管理界面手动创建订阅
- */
-private fun syncSubscriptionsOnStartup(
-    subscriptionRepository: SubscriptionRepository
-) {
-    CoroutineScope(Dispatchers.IO).launch {
-        val subscriptions = subscriptionRepository.getAllSubscriptions().firstOrNull() ?: emptyList()
-        subscriptions.filter { it.enabled }.forEach { subscription ->
-            if (subscriptionRepository.shouldSync(subscription, syncIntervalHours = 24)) {
-                subscriptionRepository.syncSubscription(subscription)
-            }
-        }
-    }
 }

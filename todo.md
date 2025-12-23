@@ -2,7 +2,19 @@
 
 ## ✅ 已完成功能
 
-### 1. 导入导出功能完善（已完成）
+### 1. 代码结构优化（已完成）
+- ✅ **MainActivity.kt 大幅优化**：
+  - 从 1514 行优化到 780 行，减少约 734 行代码（48.5%）
+  - 提取了 5 个对话框组件到独立文件 `ImportExportDialogs.kt`（768 行）
+  - 删除了冗余的 `syncSubscriptionsOnStartup` 函数
+  - 将 `getWeekNumber` 函数移至 `util/TimeExtensions.kt` 作为扩展函数
+  - 清理了所有未使用的导入
+- ✅ **代码模块化**：
+  - 提取了 `ImportConfirmDialog`、`ImportResultDialog`、`ExportOptionsDialog`、`DateRangePickerDialog`、`ExportConfirmDialog` 五个对话框组件
+  - 提升了代码可读性和可维护性
+  - 实现了功能的无损切换
+
+### 2. 导入导出功能完善（已完成）
 - ✅ **导出功能**：
   - 支持三种导出模式：当前日期、自定义日期范围、所有日程
   - 导出选项对话框，显示每个选项的日程数量

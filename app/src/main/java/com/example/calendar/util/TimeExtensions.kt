@@ -7,6 +7,8 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.WeekFields
+import java.util.Locale
 
 /**
  * 与时间、时区相关的通用扩展函数，集中管理，避免在各个 UI 文件中重复实现。
@@ -106,5 +108,13 @@ fun LocalDate.formatChineseDate(): String {
         this == today -> "今天${this.monthValue}月${this.dayOfMonth}日"
         else -> "${this.year}年${this.monthValue}月${this.dayOfMonth}日"
     }
+}
+
+/**
+ * 计算日期所在的一年中的周数
+ */
+fun LocalDate.getWeekNumber(): Int {
+    val weekFields = WeekFields.of(Locale.getDefault())
+    return this.get(weekFields.weekOfWeekBasedYear())
 }
 

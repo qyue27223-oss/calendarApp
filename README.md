@@ -22,11 +22,14 @@
 - **现代化 UI**：采用 Material3 设计规范，统一的共享组件设计，优化的日程状态样式和天气卡片样式
 
 ### 代码质量
-- **持续优化**：定期进行代码重构和优化，累计减少冗余代码约 296-306 行（包括共享组件提取、主题逻辑优化、Repository 优化等）
+- **持续优化**：定期进行代码重构和优化，累计减少冗余代码约 734 行（MainActivity.kt 从 1514 行优化到 780 行，减少 48.5%）
+- **组件提取**：提取了 5 个对话框组件到独立文件 `ImportExportDialogs.kt`（768 行，包含 `ImportConfirmDialog`、`ImportResultDialog`、`ExportOptionsDialog`、`DateRangePickerDialog`、`ExportConfirmDialog`），提升代码模块化
 - **依赖统一**：Retrofit/OkHttp/Gson 依赖改为使用版本清单 `libs.versions.toml` 管理，减少重复声明
 - **日志安全**：网络层仅在 Debug 版输出 BODY 级别日志，Release 版降级为 BASIC，降低泄露风险
 - **结构优化**：提取公共组件（`CalendarTopBarTitle`、`NavigationIconButton`、`ForwardIconButton`），统一时区处理（使用系统默认时区），简化数据结构
 - **主题功能优化**：提取 `calculateDarkTheme()` 函数统一主题计算逻辑，优化 Repository 层代码，消除重复逻辑
+- **工具函数优化**：将 `getWeekNumber` 函数移至 `util/TimeExtensions.kt` 作为扩展函数，提升代码复用性
+- **冗余代码清理**：删除了冗余的 `syncSubscriptionsOnStartup` 函数（已在 `CalendarApp.kt` 中实现），清理未使用的导入
 - **性能优化**：优化数据库查询逻辑，减少不必要的全表查询
 - **可维护性**：提取共享组件和通用函数，提升代码可维护性和可扩展性
 
