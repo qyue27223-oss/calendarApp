@@ -2,6 +2,7 @@ package com.example.calendar.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 /**
  * 位置获取工具类
@@ -38,9 +39,9 @@ object LocationHelper {
     fun saveCity(context: Context?, cityCode: String, cityName: String) {
         if (context == null) return
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(KEY_CITY_CODE, cityCode)
-            .putString(KEY_CITY_NAME, cityName)
-            .apply()
+        prefs.edit {
+            putString(KEY_CITY_CODE, cityCode)
+            putString(KEY_CITY_NAME, cityName)
+        }
     }
 }

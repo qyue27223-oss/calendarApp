@@ -20,6 +20,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -29,6 +30,8 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerDefaults
 import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -118,6 +121,9 @@ fun EventEditorDialog(
     }
 
     // 第四个模块：备注
+    val (location, setLocation) = remember(editingEvent) {
+        mutableStateOf(editingEvent?.location ?: "")
+    }
     val (description, setDescription) = remember(editingEvent) {
         mutableStateOf(editingEvent?.description ?: "")
     }
@@ -146,11 +152,21 @@ fun EventEditorDialog(
                         .fillMaxWidth()
                         .padding(bottom = 16.dp)
                 ) {
-                    // 名称输入
+                    // 名称输入（限制18字）
                     TextField(
                         value = title,
-                        onValueChange = setTitle,
-                        placeholder = { Text("请输入日程名称", color = Color.Gray) },
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 18) {
+                                setTitle(newValue)
+                            }
+                        },
+                        placeholder = { 
+                            Text(
+                                "请输入日程名称",
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodyMedium
+                            ) 
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         colors = TextFieldDefaults.colors(
                             unfocusedContainerColor = Color.White,
@@ -159,14 +175,24 @@ fun EventEditorDialog(
                         textStyle = MaterialTheme.typography.titleLarge,
                         singleLine = true,
                         trailingIcon = {
-                            if (title.isNotEmpty()) {
-                                TextButton(
-                                    onClick = { 
-                                        setTitle("")
-                                        keyboardController?.hide()
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "${title.length}/18",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (title.length >= 18) Color.Red else Color.Gray
+                                )
+                                if (title.isNotEmpty()) {
+                                    TextButton(
+                                        onClick = { 
+                                            setTitle("")
+                                            keyboardController?.hide()
+                                        }
+                                    ) {
+                                        Text("✕", color = Color.Gray)
                                     }
-                                ) {
-                                    Text("✕", color = Color.Gray)
                                 }
                             }
                         }
@@ -481,7 +507,51 @@ fun EventEditorDialog(
                     }
                 }
 
-                // ========== 第四个模块：备注和按钮 ==========
+                // ========== 第四个模块：地点（可选） ==========
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "地点（可选）",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        TextField(
+                            value = location,
+                            onValueChange = setLocation,
+                            placeholder = { 
+                                Text(
+                                    "请输入位置",
+                                    color = Color.Gray,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                unfocusedContainerColor = Color.White,
+                                focusedContainerColor = Color.White
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Place,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            singleLine = true,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                // ========== 第五个模块：备注和按钮 ==========
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9))
@@ -489,22 +559,44 @@ fun EventEditorDialog(
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
-                        Text(
-                            text = "备注（可选）",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "备注（可选）",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = "${description.length}/200",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (description.length >= 200) Color.Red else Color.Gray
+                            )
+                        }
                         TextField(
                             value = description,
-                            onValueChange = setDescription,
-                            placeholder = { Text("请输入备注信息", color = Color.Gray) },
+                            onValueChange = { newValue ->
+                                if (newValue.length <= 200) {
+                                    setDescription(newValue)
+                                }
+                            },
+                            placeholder = { 
+                                Text(
+                                    "请输入备注信息",
+                                    color = Color.Gray,
+                                    style = MaterialTheme.typography.bodySmall
+                                ) 
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             colors = TextFieldDefaults.colors(
                                 unfocusedContainerColor = Color.White,
                                 focusedContainerColor = Color.White
                             ),
-                            maxLines = 3
+                            maxLines = 5
                         )
                     }
                 }
@@ -551,7 +643,7 @@ fun EventEditorDialog(
                                         uid = java.util.UUID.randomUUID().toString(),
                                         summary = title,
                                         description = description.ifBlank { null },
-                                        location = null,
+                                        location = location.ifBlank { null },
                                         dtStart = startMillis,
                                         dtEnd = endMillis,
                                         timezone = eventTimezone,
@@ -563,6 +655,7 @@ fun EventEditorDialog(
                                     editingEvent.copy(
                                         summary = title,
                                         description = description.ifBlank { null },
+                                        location = location.ifBlank { null },
                                         dtStart = startMillis,
                                         dtEnd = endMillis,
                                         reminderMinutes = reminder,

@@ -50,8 +50,8 @@ import java.time.LocalDate
 fun SubscriptionEventItem(
     subscriptionEvent: SubscriptionEvent,
     subscriptionType: SubscriptionType,
-    onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
     allSubscriptionEvents: List<Pair<SubscriptionEvent, SubscriptionType>> = emptyList(), // 所有订阅事件，用于获取完整的5天预报
     onCityChanged: (() -> Unit)? = null // 城市切换后的回调，用于触发重新同步
 ) {

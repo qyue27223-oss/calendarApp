@@ -29,15 +29,16 @@ android {
         }
     }
     compileOptions {
-        // 改回Java 1.8，适配Gradle 8.13
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        // 与最新 Compose/Room 依赖保持一致，使用 Java 17
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "1.8" // 和compileOptions一致
+        jvmTarget = "17"
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -65,12 +66,12 @@ dependencies {
     // ViewModel for Compose
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
-    // 网络请求依赖
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation("com.google.code.gson:gson:2.10.1")
+    // 网络请求依赖（统一走 libs 版本清单）
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+    implementation(libs.gson)
 
     // 农历计算库
     implementation("com.github.XhinLiang:LunarCalendar:1.2.0")

@@ -30,13 +30,12 @@ import java.time.format.DateTimeFormatter
 fun DayView(
     date: LocalDate,
     events: List<Event>,
-    subscriptionEvents: List<Pair<SubscriptionEvent, com.example.calendar.data.SubscriptionType>> = emptyList(),
     contentPadding: PaddingValues,
     onEventClick: (Event) -> Unit,
+    modifier: Modifier = Modifier.fillMaxSize(),
+    subscriptionEvents: List<Pair<SubscriptionEvent, com.example.calendar.data.SubscriptionType>> = emptyList(),
     allSubscriptionEvents: List<Pair<SubscriptionEvent, com.example.calendar.data.SubscriptionType>> = emptyList(),
-    onCityChanged: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
-        .fillMaxSize()
+    onCityChanged: (() -> Unit)? = null
 ) {
     val formatter = rememberTimeFormatter()
 

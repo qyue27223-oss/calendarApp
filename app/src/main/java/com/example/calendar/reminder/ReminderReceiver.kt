@@ -1,11 +1,14 @@
 package com.example.calendar.reminder
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.media.RingtoneManager
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.example.calendar.R
 import com.example.calendar.data.AppDatabase
 import com.example.calendar.data.getEventByIdOnce
@@ -57,8 +60,19 @@ class ReminderReceiver : BroadcastReceiver() {
             builder.setSound(defaultSoundUri)
         }
 
-        with(NotificationManagerCompat.from(context)) {
-            notify(title.hashCode(), builder.build())
+        val notificationManager = NotificationManagerCompat.from(context)
+        val canNotify = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        if (canNotify) {
+            try {
+                notificationManager.notify(title.hashCode(), builder.build())
+            } catch (_: SecurityException) {
+                // 安全兜底：权限被拒绝时不抛出崩溃
+            }
         }
     }
 

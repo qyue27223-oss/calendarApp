@@ -1,8 +1,9 @@
+@file:Suppress("SpellCheckingInspection")
+
 package com.example.calendar
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -58,6 +59,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,23 +67,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.temporal.WeekFields
 import java.util.Locale
-import com.example.calendar.data.AppDatabase
 import com.example.calendar.data.EventRepository
 import com.example.calendar.data.SubscriptionRepository
-import com.example.calendar.data.SubscriptionSyncManager
-import com.example.calendar.reminder.ReminderScheduler
-import com.example.calendar.ui.CalendarScreen
+import com.example.calendar.ui.CalendarViewMode
 import com.example.calendar.ui.CalendarViewModel
+import com.example.calendar.ui.SubscriptionViewModel
+import com.example.calendar.ui.CalendarScreen
 import com.example.calendar.ui.EventEditorDialog
 import com.example.calendar.ui.SubscriptionScreen
-import com.example.calendar.ui.SubscriptionViewModel
 import com.example.calendar.ui.theme.CalendarTheme
-import com.example.calendar.util.ThemeManager
-import com.example.calendar.util.rememberThemeManager
 import com.example.calendar.util.ThemeMode
+import com.example.calendar.util.rememberThemeManager
+import com.example.calendar.util.IcsImporter
+import com.example.calendar.util.calculateDarkTheme
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -96,25 +101,10 @@ class MainActivity : ComponentActivity() {
 
         createNotificationChannel()
 
-        // 简单的手动依赖注入
-        val database = AppDatabase.getInstance(applicationContext)
-        val scheduler = ReminderScheduler(applicationContext)
-        val eventRepository = EventRepository(
-            eventDao = database.eventDao(),
-            reminderDao = database.reminderDao(),
-            reminderScheduler = scheduler
-        )
-        val subscriptionRepository = SubscriptionRepository(
-            subscriptionDao = database.subscriptionDao(),
-            subscriptionEventDao = database.subscriptionEventDao(),
-            context = applicationContext
-        )
-
-        // 启动定时同步任务
-        SubscriptionSyncManager.startPeriodicSync(applicationContext)
-
-        // 应用启动时检查并同步订阅数据
-        syncSubscriptionsOnStartup(subscriptionRepository)
+        // 从 Application 统一获取依赖
+        val app = application as CalendarApp
+        val eventRepository = app.eventRepository
+        val subscriptionRepository = app.subscriptionRepository
 
         setContent {
             val themeManager = rememberThemeManager()
@@ -123,7 +113,7 @@ class MainActivity : ComponentActivity() {
             
             // 根据用户主题模式和系统主题计算当前主题
             val currentDarkTheme = remember(userThemeMode, systemDarkTheme) {
-                com.example.calendar.util.calculateDarkTheme(userThemeMode, systemDarkTheme)
+                calculateDarkTheme(userThemeMode, systemDarkTheme)
             }
             
             CalendarTheme(darkTheme = currentDarkTheme) {
@@ -161,7 +151,7 @@ class MainActivity : ComponentActivity() {
                                 setPendingIcsContent(content)
                                 // 解析并显示将要导入的事件数量
                                 try {
-                                    val events = com.example.calendar.util.IcsImporter.parse(content)
+                                    val events = IcsImporter.parse(content)
                                     if (events.isNotEmpty()) {
                                         setImportConfirmDialogVisible(true)
                                     } else {
@@ -241,8 +231,8 @@ class MainActivity : ComponentActivity() {
                                 },
                             actions = {
                                 // 快速选中今天按钮（只在月视图和周视图显示）
-                                if (uiState.viewMode == com.example.calendar.ui.CalendarViewMode.MONTH || 
-                                    uiState.viewMode == com.example.calendar.ui.CalendarViewMode.WEEK) {
+                                if (uiState.viewMode == CalendarViewMode.MONTH || 
+                                    uiState.viewMode == CalendarViewMode.WEEK) {
                                     IconButton(onClick = { vm.goToToday() }) {
                                         Icon(
                                             Icons.Filled.Today,
@@ -255,6 +245,7 @@ class MainActivity : ComponentActivity() {
                                 // 右侧三个点菜单 - 显示下拉菜单
                                 var showMenu by remember { mutableStateOf(false) }
                                 var showThemeSubMenu by remember { mutableStateOf(false) }
+                                var primaryMenuWidth by remember { mutableIntStateOf(0) }
                                 
                                 Box {
                                     IconButton(onClick = { showMenu = true }) {
@@ -267,7 +258,11 @@ class MainActivity : ComponentActivity() {
                                             showMenu = false
                                             showThemeSubMenu = false
                                         },
-                                        modifier = Modifier.padding(4.dp)
+                                        modifier = Modifier
+                                            .padding(4.dp)
+                                            .onGloballyPositioned { coordinates ->
+                                                primaryMenuWidth = coordinates.size.width
+                                            }
                                     ) {
                                         DropdownMenuItem(
                                             text = { 
@@ -328,6 +323,11 @@ class MainActivity : ComponentActivity() {
                                             }
                                         )
                                         // 主题选项 - 带嵌套子菜单
+                                        val density = LocalDensity.current
+                                        val densityValue = density.density
+                                        var themeMenuItemY by remember { mutableStateOf(0.dp) }
+                                        var themeMenuItemHeight by remember { mutableStateOf(0.dp) }
+                                        
                                         Box {
                                             DropdownMenuItem(
                                                 text = { 
@@ -357,13 +357,25 @@ class MainActivity : ComponentActivity() {
                                                         contentDescription = null,
                                                         tint = MaterialTheme.colorScheme.primary
                                                     )
+                                                },
+                                                modifier = Modifier.onGloballyPositioned { coordinates ->
+                                                    themeMenuItemY = (coordinates.positionInParent().y / densityValue).dp
+                                                    themeMenuItemHeight = (coordinates.size.height / densityValue).dp
                                                 }
                                             )
                                             
                                             DropdownMenu(
                                                 expanded = showThemeSubMenu,
                                                 onDismissRequest = { showThemeSubMenu = false },
-                                                modifier = Modifier.padding(4.dp)
+                                                offset = DpOffset(
+                                                    x = if (primaryMenuWidth > 0) {
+                                                        (primaryMenuWidth / densityValue).dp + 2.dp // 一级菜单宽度 + 小间距
+                                                    } else {
+                                                        200.dp + 2.dp // 默认宽度 + 小间距
+                                                    },
+                                                    y = themeMenuItemY - themeMenuItemHeight / 2 // 顶部对齐到按钮中心
+                                                ),
+                                                modifier = Modifier.padding(0.dp)
                                             ) {
                                                 // 浅色模式选项
                                                 DropdownMenuItem(
@@ -492,8 +504,8 @@ class MainActivity : ComponentActivity() {
                     // 导入确认对话框
                     if (importConfirmDialogVisible && pendingIcsContent != null) {
                         val eventCount = try {
-                            com.example.calendar.util.IcsImporter.parse(pendingIcsContent).size
-                        } catch (e: Exception) {
+                            IcsImporter.parse(pendingIcsContent).size
+                        } catch (_: Exception) {
                             0
                         }
                         AlertDialog(
@@ -538,9 +550,7 @@ class MainActivity : ComponentActivity() {
                             confirmButton = {
                                 Button(
                                     onClick = {
-                                        pendingIcsContent?.let { content ->
-                                            vm.importEventsFromIcs(content, onConflict = true)
-                                        }
+                                        vm.importEventsFromIcs(pendingIcsContent, onConflict = true)
                                         setImportConfirmDialogVisible(false)
                                         setPendingIcsContent(null)
                                     },
@@ -788,7 +798,7 @@ class CalendarViewModelFactory(
     private val subscriptionRepository: SubscriptionRepository? = null
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(com.example.calendar.ui.CalendarViewModel::class.java)) {
+        if (modelClass.isAssignableFrom(CalendarViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return CalendarViewModel(repository, subscriptionRepository) as T
         }
@@ -800,7 +810,7 @@ class SubscriptionViewModelFactory(
     private val repository: SubscriptionRepository
 ) : androidx.lifecycle.ViewModelProvider.Factory {
     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(com.example.calendar.ui.SubscriptionViewModel::class.java)) {
+        if (modelClass.isAssignableFrom(SubscriptionViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return SubscriptionViewModel(repository) as T
         }
@@ -865,7 +875,7 @@ private fun ForwardIconButton(
  */
 @Composable
 private fun CalendarTopBarTitle(
-    viewMode: com.example.calendar.ui.CalendarViewMode,
+    viewMode: CalendarViewMode,
     selectedDate: java.time.LocalDate,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
@@ -873,22 +883,22 @@ private fun CalendarTopBarTitle(
 ) {
     Row(
         modifier = modifier,
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // 左箭头
         NavigationIconButton(
             onClick = onPrevious,
             contentDescription = when (viewMode) {
-                com.example.calendar.ui.CalendarViewMode.MONTH -> "上一月"
-                com.example.calendar.ui.CalendarViewMode.WEEK -> "上一周"
-                com.example.calendar.ui.CalendarViewMode.DAY -> "上一天"
+                CalendarViewMode.MONTH -> "上一月"
+                CalendarViewMode.WEEK -> "上一周"
+                CalendarViewMode.DAY -> "上一天"
             }
         )
         
         // 标题内容
         when (viewMode) {
-            com.example.calendar.ui.CalendarViewMode.MONTH, com.example.calendar.ui.CalendarViewMode.WEEK -> {
+            CalendarViewMode.MONTH, CalendarViewMode.WEEK -> {
                 Column {
                     Text(
                         text = "${selectedDate.year}年${selectedDate.monthValue}月",
@@ -902,7 +912,7 @@ private fun CalendarTopBarTitle(
                     )
                 }
             }
-            com.example.calendar.ui.CalendarViewMode.DAY -> {
+            CalendarViewMode.DAY -> {
                 Text(
                     text = "${selectedDate.year}年${selectedDate.monthValue}月${selectedDate.dayOfMonth}日",
                     style = MaterialTheme.typography.titleLarge
@@ -914,33 +924,31 @@ private fun CalendarTopBarTitle(
         ForwardIconButton(
             onClick = onNext,
             contentDescription = when (viewMode) {
-                com.example.calendar.ui.CalendarViewMode.MONTH -> "下一月"
-                com.example.calendar.ui.CalendarViewMode.WEEK -> "下一周"
-                com.example.calendar.ui.CalendarViewMode.DAY -> "下一天"
+                CalendarViewMode.MONTH -> "下一月"
+                CalendarViewMode.WEEK -> "下一周"
+                CalendarViewMode.DAY -> "下一天"
             }
         )
     }
 }
 
 private fun MainActivity.createNotificationChannel() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val name = "日程提醒"
-        val descriptionText = "日程提醒通知渠道"
-        val importance = NotificationManager.IMPORTANCE_HIGH
-        val channel = NotificationChannel(REMINDER_CHANNEL_ID, name, importance).apply {
-            description = descriptionText
-        }
-        val notificationManager: NotificationManager =
-            getSystemService(NotificationManager::class.java)
-        notificationManager.createNotificationChannel(channel)
+    val name = "日程提醒"
+    val descriptionText = "日程提醒通知渠道"
+    val importance = NotificationManager.IMPORTANCE_HIGH
+    val channel = NotificationChannel(REMINDER_CHANNEL_ID, name, importance).apply {
+        description = descriptionText
     }
+    val notificationManager: NotificationManager =
+        getSystemService(NotificationManager::class.java)
+    notificationManager.createNotificationChannel(channel)
 }
 
 /**
  * 应用启动时检查并同步订阅数据（超过24小时则同步）
  * 用户可以在订阅管理界面手动创建订阅
  */
-private fun MainActivity.syncSubscriptionsOnStartup(
+private fun syncSubscriptionsOnStartup(
     subscriptionRepository: SubscriptionRepository
 ) {
     CoroutineScope(Dispatchers.IO).launch {

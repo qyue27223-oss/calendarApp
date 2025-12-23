@@ -3,6 +3,12 @@
 **产品名称**：基于 RFC5545 的日历日程管理 App  
 **产品目标**：为个人用户提供统一的日历视图、日程管理与提醒服务，支持按日/周/月查看和管理日程，集成网络订阅和农历功能。
 
+### 🔄 最近更新（简要）
+- 依赖管理：Retrofit/OkHttp/Gson 统一改为 `libs.versions.toml` 引用，新增 okhttp logging alias，移除未使用的 DocumentFile 依赖条目。
+- 网络日志：`RetrofitClient` 使用 `BuildConfig.DEBUG` 控制日志级别，Debug 输出 BODY，Release 降级 BASIC，减少发布版性能与泄露风险。
+- 构建开关：`buildFeatures.buildConfig = true`，确保可使用 `BuildConfig` 进行运行时判断。
+- 代码去重：`CalendarViewModel` 导出 ICS 方法抽取公共 `exportEvents`，消除重复逻辑。
+
 ### 1. 核心功能
 
 #### 1.1 日历视图展示

@@ -23,13 +23,13 @@ import java.time.LocalDate
 fun WeekView(
     selectedDate: LocalDate,
     onDateSelected: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier,
     allEvents: List<Event> = emptyList(),
     dayEvents: List<Event> = emptyList(),
     subscriptionEvents: List<Pair<com.example.calendar.data.SubscriptionEvent, com.example.calendar.data.SubscriptionType>> = emptyList(),
     subscriptionEventsForNext5Days: List<Pair<com.example.calendar.data.SubscriptionEvent, com.example.calendar.data.SubscriptionType>> = emptyList(),
     onEventClick: (Event) -> Unit = {},
-    onCityChanged: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onCityChanged: (() -> Unit)? = null
 ) {
     val startOfWeek = selectedDate.startOfWeek()
 

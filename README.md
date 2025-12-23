@@ -21,7 +21,8 @@
 
 ### 代码质量
 - **持续优化**：定期进行代码重构和优化，累计减少冗余代码约 296-306 行（包括共享组件提取、主题逻辑优化、Repository 优化等）
-- **代码清理**：删除未使用的导入、参数、方法和空代码块，移除调试日志，保持代码库整洁
+- **依赖统一**：Retrofit/OkHttp/Gson 依赖改为使用版本清单 `libs.versions.toml` 管理，减少重复声明
+- **日志安全**：网络层仅在 Debug 版输出 BODY 级别日志，Release 版降级为 BASIC，降低泄露风险
 - **结构优化**：提取公共组件（`CalendarTopBarTitle`、`NavigationIconButton`、`ForwardIconButton`），统一时区处理（使用系统默认时区），简化数据结构
 - **主题功能优化**：提取 `calculateDarkTheme()` 函数统一主题计算逻辑，优化 Repository 层代码，消除重复逻辑
 - **性能优化**：优化数据库查询逻辑，减少不必要的全表查询
@@ -75,6 +76,7 @@ cd calendar
 - 网络订阅功能已配置真实 API，可直接使用
 - 如需更换 API 服务，请在 `RetrofitClient.kt` 中修改 API 地址
 - 注意：订阅的 URL 字段当前未被使用，同步逻辑直接调用 API 服务
+- `buildFeatures.buildConfig` 已启用，可直接使用 `BuildConfig.DEBUG` 进行环境判断
 
 4. 运行
 - 连接 Android 设备或启动模拟器

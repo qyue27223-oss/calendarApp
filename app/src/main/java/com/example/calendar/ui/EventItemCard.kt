@@ -3,27 +3,36 @@ package com.example.calendar.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.calendar.data.Event
 import com.example.calendar.util.toLocalTime
@@ -97,7 +106,7 @@ fun EventItemCard(
     showDetails: Boolean = false
 ) {
     // 添加定期更新机制，每30秒更新一次状态，实现动态状态更新
-    var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     
     LaunchedEffect(Unit) {
         while (true) {
@@ -145,6 +154,16 @@ fun EventItemCard(
         }
     }
     
+    // 处理标题和备注长度限制
+    val displayTitle = remember(event.summary) {
+        if (event.summary.length > 18) event.summary.take(18) else event.summary
+    }
+    val displayDescription = remember(event.description) {
+        event.description?.takeIf { it.isNotBlank() }?.let { desc ->
+            if (desc.length > 200) desc.take(200) else desc
+        }
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -177,13 +196,15 @@ fun EventItemCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
             ) {
-                // 状态标签（所有状态都显示）
+                // 顶部行：状态标签 + 时间 + 地点（都在同一行）
                 Row(
-                    modifier = Modifier.padding(bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // 状态标签
                     Box(
                         modifier = Modifier
                             .background(
@@ -199,43 +220,90 @@ fun EventItemCard(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-                }
-                
-                Text(
-                    text = event.summary,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = textColor,
-                    fontWeight = if (status == EventStatus.COMPLETED) FontWeight.Normal else FontWeight.Medium
-                )
 
-                val startTime = event.dtStart.toLocalTime(event.timezone)
-                val endTime = event.dtEnd.toLocalTime(event.timezone)
-
-                Text(
-                    text = "${formatter.format(startTime)} - ${formatter.format(endTime)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = textColor.copy(alpha = if (status == EventStatus.COMPLETED) 0.6f else 0.8f),
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-
-                // 仅在需要时显示详细信息
-                if (showDetails) {
-                    event.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                    // 时间
+                    val startTime = event.dtStart.toLocalTime(event.timezone)
+                    val endTime = event.dtEnd.toLocalTime(event.timezone)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Schedule,
+                            contentDescription = null,
+                            tint = textColor.copy(alpha = 0.7f),
+                            modifier = Modifier.size(14.dp)
+                        )
                         Text(
-                            text = desc,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = textColor.copy(alpha = if (status == EventStatus.COMPLETED) 0.6f else 0.7f),
-                            modifier = Modifier.padding(top = 4.dp)
+                            text = "${formatter.format(startTime)} - ${formatter.format(endTime)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textColor.copy(alpha = if (status == EventStatus.COMPLETED) 0.6f else 0.8f),
+                            modifier = Modifier.padding(start = 4.dp)
                         )
                     }
 
-                    event.location?.takeIf { it.isNotBlank() }?.let { location ->
-                        Text(
-                            text = "📍 $location",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = textColor.copy(alpha = if (status == EventStatus.COMPLETED) 0.6f else 0.7f),
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+                    // 地点（如果存在）
+                    if (showDetails) {
+                        event.location?.takeIf { it.isNotBlank() }?.let { location ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Place,
+                                    contentDescription = null,
+                                    tint = textColor.copy(alpha = 0.65f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = location,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = textColor.copy(alpha = if (status == EventStatus.COMPLETED) 0.6f else 0.7f),
+                                    modifier = Modifier.padding(start = 4.dp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+
+                Spacer(modifier = Modifier.padding(vertical = 6.dp))
+
+                // 标题（只能一行）
+                Text(
+                    text = displayTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = textColor,
+                    fontWeight = if (status == EventStatus.COMPLETED) FontWeight.Normal else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip
+                )
+
+                // 备注内容（可以多行）
+                if (showDetails) {
+                    displayDescription?.let { desc ->
+                        Row(
+                            verticalAlignment = Alignment.Top,
+                            modifier = Modifier.padding(top = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Notes,
+                                contentDescription = null,
+                                tint = textColor.copy(alpha = 0.65f),
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .padding(top = 2.dp)
+                            )
+                            Text(
+                                text = desc,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = textColor.copy(alpha = if (status == EventStatus.COMPLETED) 0.6f else 0.7f),
+                                modifier = Modifier.padding(start = 6.dp),
+                                maxLines = Int.MAX_VALUE,
+                                overflow = TextOverflow.Clip
+                            )
+                        }
                     }
                 }
             }

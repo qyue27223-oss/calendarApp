@@ -2,6 +2,7 @@ package com.example.calendar.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
@@ -42,14 +43,14 @@ class ThemeManager(context: Context) {
      * 保存主题模式
      */
     fun setThemeMode(mode: ThemeMode) {
-        prefs.edit().putString(THEME_MODE_KEY, mode.name).apply()
+        prefs.edit { putString(THEME_MODE_KEY, mode.name) }
     }
     
     /**
      * 清除主题模式设置，恢复跟随系统
      */
     fun clearThemeMode() {
-        prefs.edit().remove(THEME_MODE_KEY).apply()
+        prefs.edit { remove(THEME_MODE_KEY) }
     }
 }
 

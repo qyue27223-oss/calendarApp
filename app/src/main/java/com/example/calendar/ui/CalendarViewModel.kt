@@ -251,8 +251,7 @@ class CalendarViewModel(
      * 注意：该方法是同步的，直接使用 StateFlow 当前值，不会触发额外数据库读取。
      */
     fun exportSelectedDateEventsAsIcs(): String {
-        val events = eventsForSelectedDate.value
-        return IcsExporter.export(events)
+        return exportEvents(eventsForSelectedDate.value)
     }
 
     /**
@@ -266,15 +265,14 @@ class CalendarViewModel(
         val events = allEvents.value.filter { event ->
             event.dtStart >= startTime && event.dtStart < endTime
         }
-        return IcsExporter.export(events)
+        return exportEvents(events)
     }
 
     /**
      * 导出所有事件。
      */
     fun exportAllEventsAsIcs(): String {
-        val events = allEvents.value
-        return IcsExporter.export(events)
+        return exportEvents(allEvents.value)
     }
 
     /**
@@ -308,6 +306,13 @@ class CalendarViewModel(
                     subscriptionRepository.syncSubscription(subscription)
                 }
         }
+    }
+
+    /**
+     * 公共导出方法，避免重复调用逻辑。
+     */
+    private fun exportEvents(events: List<Event>): String {
+        return IcsExporter.export(events)
     }
 }
 
