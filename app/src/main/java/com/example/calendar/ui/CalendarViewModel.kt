@@ -46,6 +46,8 @@ class CalendarViewModel(
 
     // 记录上次检查同步的月份，避免重复检查
     private var lastSyncedMonth: java.time.YearMonth? = null
+    // 记录正在同步的月份，避免并发重复请求
+    private val syncingMonths = mutableSetOf<java.time.YearMonth>()
 
     private val _uiState = MutableStateFlow(CalendarUiState())
     val uiState: StateFlow<CalendarUiState> = _uiState.asStateFlow()
@@ -201,7 +203,7 @@ class CalendarViewModel(
     }
 
     /**
-     * 检查并同步指定月份的数据（如果不存在）
+     * 检查并同步指定月份的数据（如果不存在或不完整）
      */
     private fun checkAndSyncMonthIfNeeded(date: LocalDate) {
         val subscriptionRepository = subscriptionRepository ?: return
@@ -211,6 +213,12 @@ class CalendarViewModel(
         if (lastSyncedMonth == targetMonth) {
             return
         }
+        
+        // 如果该月份正在同步中，跳过
+        if (syncingMonths.contains(targetMonth)) {
+            return
+        }
+        
         lastSyncedMonth = targetMonth
 
         viewModelScope.launch {
@@ -219,10 +227,18 @@ class CalendarViewModel(
             
             subscriptions.filter { it.enabled && it.type == SubscriptionType.HUANGLI }
                 .forEach { subscription ->
-                    // 检查该月份是否有数据
-                    if (!subscriptionRepository.hasMonthData(subscription.id, date)) {
-                        // 如果没有数据，同步该月份
-                        subscriptionRepository.syncHuangliSubscriptionForMonth(subscription, date)
+                    // 检查该月份是否有完整的数据（所有天数都有数据）
+                    val hasCompleteData = subscriptionRepository.hasCompleteMonthData(subscription.id, date)
+                    if (!hasCompleteData) {
+                        // 标记该月份正在同步
+                        syncingMonths.add(targetMonth)
+                        try {
+                            // 如果数据不完整，同步该月份
+                            subscriptionRepository.syncHuangliSubscriptionForMonth(subscription, date)
+                        } finally {
+                            // 同步完成后，移除标记
+                            syncingMonths.remove(targetMonth)
+                        }
                     }
                 }
         }

@@ -52,6 +52,7 @@ import java.time.LocalDate
 fun ImportConfirmDialog(
     visible: Boolean,
     pendingEvents: List<Event>,
+    conflictCount: Int, // 冲突数量
     conflictStrategy: Boolean, // true=覆盖, false=跳过
     onConflictStrategyChange: (Boolean) -> Unit,
     onConfirm: () -> Unit,
@@ -133,62 +134,82 @@ fun ImportConfirmDialog(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // 冲突处理选项
-                    Text(
-                        text = "冲突处理方式：",
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onConflictStrategyChange(true) }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = conflictStrategy,
-                            onClick = { onConflictStrategyChange(true) }
+                    // 显示冲突信息
+                    if (conflictCount > 0) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "⚠ 检测到 $conflictCount 个日程与已有日程冲突",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "覆盖已有日程",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = "如果存在相同 ID 的日程，将用新日程替换",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    } else {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "✓ 未检测到冲突，所有日程将作为新日程导入",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
                     }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onConflictStrategyChange(false) }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = !conflictStrategy,
-                            onClick = { onConflictStrategyChange(false) }
+                    // 冲突处理选项（仅在存在冲突时显示）
+                    if (conflictCount > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "冲突处理方式：",
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "跳过已有日程",
-                                style = MaterialTheme.typography.bodyMedium
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onConflictStrategyChange(true) }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = conflictStrategy,
+                                onClick = { onConflictStrategyChange(true) }
                             )
-                            Text(
-                                text = "如果存在相同 ID 的日程，将保留原有日程",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "覆盖已有日程",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = "如果存在相同 ID 的日程，将用新日程替换",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onConflictStrategyChange(false) }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = !conflictStrategy,
+                                onClick = { onConflictStrategyChange(false) }
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "跳过已有日程",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = "如果存在相同 ID 的日程，将保留原有日程",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }

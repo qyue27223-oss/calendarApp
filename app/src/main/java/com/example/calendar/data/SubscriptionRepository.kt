@@ -84,14 +84,26 @@ class SubscriptionRepository(
     }
 
     /**
-     * 同步所有启用的订阅
+     * 优化：只同步需要同步的订阅（基于最后更新时间）
      */
     suspend fun syncAllEnabledSubscriptions(): List<SyncResult> {
         val results = mutableListOf<SyncResult>()
         val subscriptionList = subscriptionDao.getAllSubscriptions().firstOrNull() ?: emptyList()
         subscriptionList.filter { it.enabled }.forEach { subscription ->
-            val result = syncSubscription(subscription)
-            results.add(result)
+            // 检查是否需要同步（基于最后更新时间，默认24小时）
+            if (shouldSync(subscription, syncIntervalHours = 24)) {
+                val result = syncSubscription(subscription)
+                results.add(result)
+            } else {
+                // 不需要同步，返回跳过结果
+                results.add(
+                    SyncResult(
+                        success = true,
+                        message = "跳过同步（数据未过期）",
+                        updatedCount = 0
+                    )
+                )
+            }
         }
         return results
     }
@@ -308,6 +320,29 @@ class SubscriptionRepository(
         val events = subscriptionEventDao.getEventsBetween(startDateMillis, endDateMillis, subscriptionId)
             .firstOrNull() ?: emptyList()
         return events.isNotEmpty()
+    }
+
+    /**
+     * 检查指定月份的数据是否完整（所有天数都有数据）
+     * @param subscriptionId 订阅ID
+     * @param yearMonth 目标月份
+     * @return true 如果该月份所有天数都有数据，false 否则
+     */
+    suspend fun hasCompleteMonthData(subscriptionId: Long, yearMonth: LocalDate): Boolean {
+        val firstDayOfMonth = yearMonth.withDayOfMonth(1)
+        val lastDayOfMonth = yearMonth.withDayOfMonth(yearMonth.lengthOfMonth())
+        val expectedDays = yearMonth.lengthOfMonth() // 该月的天数
+        
+        val startDateMillis = firstDayOfMonth.atStartOfDay(ZoneId.systemDefault())
+            .toInstant().toEpochMilli()
+        val endDateMillis = lastDayOfMonth.plusDays(1).atStartOfDay(ZoneId.systemDefault())
+            .toInstant().toEpochMilli()
+        
+        val events = subscriptionEventDao.getEventsBetween(startDateMillis, endDateMillis, subscriptionId)
+            .firstOrNull() ?: emptyList()
+        
+        // 如果事件数量少于该月的天数，说明数据不完整
+        return events.size >= expectedDays
     }
 
     /**

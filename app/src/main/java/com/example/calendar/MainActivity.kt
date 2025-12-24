@@ -131,6 +131,7 @@ class MainActivity : ComponentActivity() {
                 val (importConfirmDialogVisible, setImportConfirmDialogVisible) = remember { mutableStateOf(false) }
                 val (pendingIcsContent, setPendingIcsContent) = remember { mutableStateOf<String?>(null) }
                 val (pendingImportEvents, setPendingImportEvents) = remember { mutableStateOf<List<com.example.calendar.data.Event>>(emptyList()) }
+                val (importConflictCount, setImportConflictCount) = remember { mutableStateOf(0) } // 冲突数量
                 val (importConflictStrategy, setImportConflictStrategy) = remember { mutableStateOf(true) } // true=覆盖, false=跳过
                 val snackbarHostState = remember { SnackbarHostState() }
                 val scope = rememberCoroutineScope()
@@ -151,7 +152,12 @@ class MainActivity : ComponentActivity() {
                                     val events = IcsImporter.parse(content)
                                     if (events.isNotEmpty()) {
                                         setPendingImportEvents(events)
-                                        setImportConfirmDialogVisible(true)
+                                        // 检查冲突
+                                        scope.launch {
+                                            val conflictCount = eventRepository.checkImportConflicts(events)
+                                            setImportConflictCount(conflictCount)
+                                            setImportConfirmDialogVisible(true)
+                                        }
                                     } else {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(
@@ -555,6 +561,7 @@ class MainActivity : ComponentActivity() {
                     ImportConfirmDialog(
                         visible = importConfirmDialogVisible && pendingIcsContent != null && pendingImportEvents.isNotEmpty(),
                         pendingEvents = pendingImportEvents,
+                        conflictCount = importConflictCount,
                         conflictStrategy = importConflictStrategy,
                         onConflictStrategyChange = { setImportConflictStrategy(it) },
                         onConfirm = {
@@ -562,11 +569,13 @@ class MainActivity : ComponentActivity() {
                             setImportConfirmDialogVisible(false)
                             setPendingIcsContent(null)
                             setPendingImportEvents(emptyList())
+                            setImportConflictCount(0)
                         },
                         onDismiss = {
                             setImportConfirmDialogVisible(false)
                             setPendingIcsContent(null)
                             setPendingImportEvents(emptyList())
+                            setImportConflictCount(0)
                         }
                     )
 
@@ -819,10 +828,35 @@ private fun MainActivity.createNotificationChannel() {
     val name = "日程提醒"
     val descriptionText = "日程提醒通知渠道"
     val importance = NotificationManager.IMPORTANCE_HIGH
-    val channel = NotificationChannel(REMINDER_CHANNEL_ID, name, importance).apply {
-        description = descriptionText
-    }
     val notificationManager: NotificationManager =
         getSystemService(NotificationManager::class.java)
+    
+    // 如果渠道已存在，先删除它（因为渠道的声音设置一旦创建就无法通过代码修改）
+    // 这样可以确保新创建的渠道有正确的声音设置
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        val existingChannel = notificationManager.getNotificationChannel(REMINDER_CHANNEL_ID)
+        if (existingChannel != null) {
+            notificationManager.deleteNotificationChannel(REMINDER_CHANNEL_ID)
+        }
+    }
+    
+    val channel = NotificationChannel(REMINDER_CHANNEL_ID, name, importance).apply {
+        description = descriptionText
+        // 启用声音和震动，确保响铃提醒可以正常工作
+        enableVibration(true)
+        enableLights(true)
+        // 设置默认通知声音（使用系统默认通知音）
+        val defaultSoundUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+        setSound(defaultSoundUri, android.media.AudioAttributes.Builder()
+            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+            .build())
+        // 设置震动模式
+        vibrationPattern = longArrayOf(0, 250, 250, 250)
+        // 设置锁屏显示方式
+        lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+        // 设置绕过免打扰模式（如果需要）
+        setBypassDnd(false)
+    }
     notificationManager.createNotificationChannel(channel)
 }

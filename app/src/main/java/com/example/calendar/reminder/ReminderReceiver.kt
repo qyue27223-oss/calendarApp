@@ -46,18 +46,22 @@ class ReminderReceiver : BroadcastReceiver() {
             .setContentText(title)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .setDefaults(
-                if (hasAlarm) {
-                    NotificationCompat.DEFAULT_ALL // 包含声音、震动、灯光
-                } else {
-                    NotificationCompat.DEFAULT_LIGHTS // 只有灯光
-                }
-            )
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
-        // 如果启用响铃，设置默认通知铃声
+        // 根据 hasAlarm 设置不同的通知行为
         if (hasAlarm) {
+            // 启用响铃时：设置声音、震动、灯光
             val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             builder.setSound(defaultSoundUri)
+                .setDefaults(NotificationCompat.DEFAULT_ALL) // 使用 DEFAULT_ALL 包含声音、震动、灯光
+                .setVibrate(longArrayOf(0, 250, 250, 250))
+                .setOnlyAlertOnce(false) // 允许每次通知都播放声音
+        } else {
+            // 不启用响铃时：只有灯光，无声音无震动
+            builder.setDefaults(NotificationCompat.DEFAULT_LIGHTS)
+                .setSound(null)
+                .setVibrate(null)
         }
 
         val notificationManager = NotificationManagerCompat.from(context)

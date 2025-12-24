@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.runtime.Composable
@@ -266,6 +267,16 @@ fun EventItemCard(
                     }
 
                     Spacer(modifier = Modifier.weight(1f))
+                    
+                    // 响铃图标（如果启用了响铃提醒）
+                    if (event.hasAlarm) {
+                        Icon(
+                            imageVector = Icons.Filled.Notifications,
+                            contentDescription = "响铃提醒",
+                            tint = textColor.copy(alpha = 0.8f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.padding(vertical = 6.dp))

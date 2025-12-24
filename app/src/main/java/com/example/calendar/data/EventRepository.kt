@@ -209,6 +209,23 @@ class EventRepository(
     }
 
     /**
+     * 检查导入事件是否有冲突（通过 UID 检查）
+     * 
+     * @param events 要导入的事件列表
+     * @return 有冲突的事件数量
+     */
+    suspend fun checkImportConflicts(events: List<Event>): Int {
+        var conflictCount = 0
+        for (event in events) {
+            val existingEvent = eventDao.getEventByUid(event.uid)
+            if (existingEvent != null) {
+                conflictCount++
+            }
+        }
+        return conflictCount
+    }
+
+    /**
      * 从 ICS 内容导入事件。
      * 
      * @param icsContent ICS 文件内容
