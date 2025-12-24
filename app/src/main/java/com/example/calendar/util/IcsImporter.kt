@@ -64,7 +64,6 @@ object IcsImporter {
                     events.add(event)
                 } catch (e: Exception) {
                     // 记录错误但继续解析其他事件
-                    println("Failed to parse event: ${e.message}")
                 }
             }
             i++

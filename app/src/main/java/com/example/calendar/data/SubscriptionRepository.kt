@@ -249,7 +249,6 @@ class SubscriptionRepository(
                     }
                 } catch (e: Exception) {
                     // 单个日期失败不影响其他日期
-                    println("获取 ${dateStr} 的黄历信息失败: ${e.message}")
                 }
                 
                 // 移动到下一天

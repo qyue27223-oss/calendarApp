@@ -233,8 +233,7 @@ class CalendarViewModel(
             try {
                 repository.upsertEventWithReminder(event, reminderMinutes, repeatCount)
             } catch (e: Exception) {
-                // 记录错误，避免应用崩溃
-                e.printStackTrace()
+                // 静默处理错误，避免应用崩溃
             }
         }
     }

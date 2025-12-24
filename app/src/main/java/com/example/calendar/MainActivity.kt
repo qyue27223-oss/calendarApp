@@ -510,9 +510,15 @@ class MainActivity : ComponentActivity() {
                         if (!showSubscriptionScreen) {
                             FloatingActionButton(
                                 onClick = { vm.startCreateEvent() },
-                                modifier = Modifier.size(56.dp)
+                                modifier = Modifier.size(48.dp),
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                             ) {
-                                Icon(Icons.Filled.Add, contentDescription = "添加日程")
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = "添加日程",
+                                    modifier = Modifier.size(24.dp)
+                                )
                             }
                         }
                     }
