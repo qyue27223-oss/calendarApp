@@ -1,9 +1,12 @@
 package com.example.calendar.reminder
 
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -38,6 +41,11 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 
     private fun showNotification(context: Context, eventId: Long, title: String, hasAlarm: Boolean) {
+        // 确保通知渠道存在（Android 8.0+）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ensureNotificationChannels(context)
+        }
+        
         // 根据 hasAlarm 选择不同的通知渠道
         // Android 8.0+ 上，声音和震动由渠道控制，不能通过 builder 设置
         val channelId = if (hasAlarm) {
@@ -55,24 +63,18 @@ class ReminderReceiver : BroadcastReceiver() {
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
-        // 对于 Android 8.0 以下版本，仍然可以通过 builder 设置声音和震动
+        // 对于 Android 8.0 以下版本，仍然可以通过 builder 设置声音
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
             if (hasAlarm) {
-                // 启用响铃时：设置声音、震动、灯光
+                // 启用响铃时：设置声音
+                // 使用系统自带的通知铃声
                 val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 builder.setSound(defaultSoundUri)
-                    .setVibrate(longArrayOf(0, 250, 250, 250))
-                    .setDefaults(NotificationCompat.DEFAULT_LIGHTS)
                     .setOnlyAlertOnce(false)
             } else {
-                // 不启用响铃时：只有灯光，无声音无震动
-                builder.setDefaults(NotificationCompat.DEFAULT_LIGHTS)
-                    .setSound(null)
-                    .setVibrate(null)
+                // 不启用响铃时：无声音（只有消息提醒）
+                builder.setSound(null)
             }
-        } else {
-            // Android 8.0+ 上，声音和震动由渠道控制，这里只设置灯光（如果需要）
-            builder.setDefaults(NotificationCompat.DEFAULT_LIGHTS)
         }
 
         val notificationManager = NotificationManagerCompat.from(context)
@@ -90,6 +92,44 @@ class ReminderReceiver : BroadcastReceiver() {
                 notificationManager.notify(notificationId, builder.build())
             } catch (_: SecurityException) {
                 // 安全兜底：权限被拒绝时不抛出崩溃
+            }
+        }
+    }
+
+    /**
+     * 确保通知渠道存在（如果不存在则创建）
+     * 这是一个安全措施，防止在应用未运行时触发提醒时渠道不存在
+     */
+    private fun ensureNotificationChannels(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            
+            // 检查并创建响铃渠道
+            var channel = notificationManager.getNotificationChannel(REMINDER_CHANNEL_ID)
+            if (channel == null) {
+                channel = NotificationChannel(REMINDER_CHANNEL_ID, "日程提醒（响铃）", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "带声音的日程提醒"
+                    val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                    setSound(defaultSoundUri, AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .build())
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                    setBypassDnd(false)
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
+            
+            // 检查并创建静音渠道
+            var silentChannel = notificationManager.getNotificationChannel(REMINDER_SILENT_CHANNEL_ID)
+            if (silentChannel == null) {
+                silentChannel = NotificationChannel(REMINDER_SILENT_CHANNEL_ID, "日程提醒（静音）", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "静音日程提醒"
+                    setSound(null, null)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                    setBypassDnd(false)
+                }
+                notificationManager.createNotificationChannel(silentChannel)
             }
         }
     }

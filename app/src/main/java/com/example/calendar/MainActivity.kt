@@ -871,27 +871,23 @@ private fun MainActivity.createNotificationChannel() {
             notificationManager.deleteNotificationChannel(REMINDER_SILENT_CHANNEL_ID)
         }
         
-        // 创建有响铃的提醒渠道（启用声音、震动、灯光）
+        // 创建有响铃的提醒渠道（启用声音）
         val channel = NotificationChannel(REMINDER_CHANNEL_ID, "日程提醒（响铃）", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "带声音、震动和灯光的日程提醒"
-            enableVibration(true)
-            enableLights(true)
+            description = "带声音的日程提醒"
+            // 使用系统自带的通知铃声
             val defaultSoundUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
             setSound(defaultSoundUri, android.media.AudioAttributes.Builder()
                 .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION) // 使用通知类型
                 .build())
-            vibrationPattern = longArrayOf(0, 250, 250, 250)
             lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             setBypassDnd(false)
         }
         notificationManager.createNotificationChannel(channel)
         
-        // 创建静音提醒渠道（只有灯光，无声音无震动）
+        // 创建静音提醒渠道（无声音）
         val silentChannel = NotificationChannel(REMINDER_SILENT_CHANNEL_ID, "日程提醒（静音）", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "只有灯光的静音日程提醒"
-            enableVibration(false) // 禁用震动
-            enableLights(true) // 启用灯光
+            description = "静音日程提醒"
             setSound(null, null) // 禁用声音
             lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             setBypassDnd(false)

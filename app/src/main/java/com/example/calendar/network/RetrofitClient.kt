@@ -19,9 +19,9 @@ object RetrofitClient {
     private val okHttpClient: OkHttpClient by lazy {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
-                HttpLoggingInterceptor.Level.BODY
+                HttpLoggingInterceptor.Level.BASIC  // 从 BODY 改为 BASIC，减少日志输出
             } else {
-                HttpLoggingInterceptor.Level.BASIC
+                HttpLoggingInterceptor.Level.NONE  // 发布版本完全不输出日志
             }
         }
         
