@@ -351,6 +351,9 @@ class CalendarViewModel(
         _uiState.value = _uiState.value.copy(importResult = null)
     }
     
+    // 同步错误回调
+    var onSyncError: ((String) -> Unit)? = null
+
     /**
      * 同步天气订阅（用于城市切换后重新获取天气数据）
      */
@@ -362,7 +365,10 @@ class CalendarViewModel(
             
             subscriptions.filter { it.enabled && it.type == SubscriptionType.WEATHER }
                 .forEach { subscription ->
-                    subscriptionRepository.syncSubscription(subscription)
+                    val result = subscriptionRepository.syncSubscription(subscription)
+                    if (!result.success) {
+                        onSyncError?.invoke("同步失败，请稍后重试")
+                    }
                 }
         }
     }

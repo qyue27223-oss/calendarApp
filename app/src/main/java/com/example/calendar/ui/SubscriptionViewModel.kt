@@ -23,12 +23,18 @@ class SubscriptionViewModel(
                 initialValue = emptyList()
             )
 
+    // 同步错误回调
+    var onSyncError: ((String) -> Unit)? = null
+
     fun insertSubscription(subscription: Subscription) {
         viewModelScope.launch {
             val subscriptionId = repository.insertSubscription(subscription)
             // 如果订阅是启用的，立即同步数据
             if (subscription.enabled) {
-                repository.syncSubscription(subscription.copy(id = subscriptionId))
+                val result = repository.syncSubscription(subscription.copy(id = subscriptionId))
+                if (!result.success) {
+                    onSyncError?.invoke("同步失败，请稍后重试")
+                }
             }
         }
     }
@@ -38,7 +44,10 @@ class SubscriptionViewModel(
             repository.updateSubscription(subscription)
             // 如果订阅是启用的，立即同步数据
             if (subscription.enabled) {
-                repository.syncSubscription(subscription)
+                val result = repository.syncSubscription(subscription)
+                if (!result.success) {
+                    onSyncError?.invoke("同步失败，请稍后重试")
+                }
             }
         }
     }

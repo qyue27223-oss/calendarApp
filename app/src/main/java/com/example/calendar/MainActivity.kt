@@ -138,6 +138,26 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 val context = LocalContext.current
 
+                // 设置同步错误回调
+                LaunchedEffect(Unit) {
+                    vm.onSyncError = { errorMessage ->
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                errorMessage,
+                                duration = androidx.compose.material3.SnackbarDuration.Long
+                            )
+                        }
+                    }
+                    subscriptionVm.onSyncError = { errorMessage ->
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                errorMessage,
+                                duration = androidx.compose.material3.SnackbarDuration.Long
+                            )
+                        }
+                    }
+                }
+
                 // 监听从订阅页面返回主页面，刷新订阅数据
                 val previousShowSubscriptionScreen = remember { mutableStateOf(false) }
                 LaunchedEffect(showSubscriptionScreen) {
@@ -292,16 +312,13 @@ class MainActivity : ComponentActivity() {
                                     )
                                 },
                             actions = {
-                                // 快速选中今天按钮（只在月视图和周视图显示）
-                                if (uiState.viewMode == CalendarViewMode.MONTH || 
-                                    uiState.viewMode == CalendarViewMode.WEEK) {
-                                    IconButton(onClick = { vm.goToToday() }) {
-                                        Icon(
-                                            Icons.Filled.Today,
-                                            contentDescription = "今天",
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
+                                // 快速选中今天按钮（在所有视图显示）
+                                IconButton(onClick = { vm.goToToday() }) {
+                                    Icon(
+                                        Icons.Filled.Today,
+                                        contentDescription = "今天",
+                                        modifier = Modifier.size(24.dp)
+                                    )
                                 }
                                 
                                 // 右侧三个点菜单 - 显示下拉菜单
@@ -320,6 +337,7 @@ class MainActivity : ComponentActivity() {
                                             showMenu = false
                                             showThemeSubMenu = false
                                         },
+                                        offset = DpOffset(x = (-8).dp, y = 0.dp), // 增加与右侧的间距
                                         modifier = Modifier
                                             .padding(4.dp)
                                             .onGloballyPositioned { coordinates ->
