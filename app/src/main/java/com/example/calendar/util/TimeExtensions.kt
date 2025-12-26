@@ -60,17 +60,17 @@ fun Long.toLocalDate(timezoneId: String): java.time.LocalDate {
 }
 
 /**
- * 计算一周的开始日期（周一为一周开始）
+ * 计算一周的开始日期（周日为一周开始）
  */
 fun LocalDate.startOfWeek(): LocalDate {
     val diff = when (this.dayOfWeek) {
-        DayOfWeek.MONDAY -> 0
-        DayOfWeek.TUESDAY -> -1
-        DayOfWeek.WEDNESDAY -> -2
-        DayOfWeek.THURSDAY -> -3
-        DayOfWeek.FRIDAY -> -4
-        DayOfWeek.SATURDAY -> -5
-        DayOfWeek.SUNDAY -> -6
+        DayOfWeek.SUNDAY -> 0
+        DayOfWeek.MONDAY -> -1
+        DayOfWeek.TUESDAY -> -2
+        DayOfWeek.WEDNESDAY -> -3
+        DayOfWeek.THURSDAY -> -4
+        DayOfWeek.FRIDAY -> -5
+        DayOfWeek.SATURDAY -> -6
     }
     return this.plusDays(diff.toLong())
 }
@@ -112,9 +112,42 @@ fun LocalDate.formatChineseDate(): String {
 
 /**
  * 计算日期所在的一年中的周数
+ * 使用周日作为一周的开始，确保跨年时正确显示当前年份的周数
  */
 fun LocalDate.getWeekNumber(): Int {
-    val weekFields = WeekFields.of(Locale.getDefault())
-    return this.get(weekFields.weekOfWeekBasedYear())
+    // 获取该日期所在周的起始日期（周日）
+    val weekStart = this.startOfWeek()
+    
+    // 找到当前年的第一个周日（1月1日所在周的周日）
+    val yearStart = LocalDate.of(this.year, 1, 1)
+    val firstSundayOfYear = yearStart.startOfWeek()
+    
+    // 如果周起始日期属于上一年，说明这是当前年的第1周
+    if (weekStart.year < this.year) {
+        return 1
+    }
+    
+    // 如果周起始日期属于下一年，说明这是当前年的最后一周
+    if (weekStart.year > this.year) {
+        // 需要计算该年总共有多少周
+        // 找到该年最后一个属于该年的周日（12月31日所在周的起始日期如果在下一年，则减去7天）
+        val yearEnd = LocalDate.of(this.year, 12, 31)
+        val lastWeekStart = yearEnd.startOfWeek()
+        val lastSundayOfYear = if (lastWeekStart.year > this.year) {
+            lastWeekStart.minusDays(7)
+        } else {
+            lastWeekStart
+        }
+        
+        // 计算从第一个周日到最后一个周日的总周数
+        val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(firstSundayOfYear, lastSundayOfYear).toInt()
+        return (daysBetween / 7) + 1
+    }
+    
+    // 正常情况下（weekStart.year == this.year），计算从该年第一个周日到当前周起始日期的周数
+    val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(firstSundayOfYear, weekStart).toInt()
+    // daysBetween应该总是非负的，因为weekStart >= firstSundayOfYear
+    val weekNumber = (daysBetween / 7) + 1
+    return weekNumber.coerceAtLeast(1)
 }
 

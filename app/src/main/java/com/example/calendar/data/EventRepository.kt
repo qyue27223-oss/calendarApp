@@ -250,17 +250,25 @@ class EventRepository(
                     
                     if (existingEvent != null) {
                         if (onConflict) {
-                            // 覆盖：更新现有事件（保留原有的 id）
-                            val updatedEvent = event.copy(id = existingEvent.id)
-                            eventDao.updateEvent(updatedEvent)
+                            // 覆盖：使用 upsertEventWithReminder 更新现有事件并设置提醒
+                            val eventToUpdate = event.copy(id = existingEvent.id)
+                            upsertEventWithReminder(
+                                event = eventToUpdate,
+                                reminderMinutes = event.reminderMinutes,
+                                repeatCount = 0 // 导入时不处理重复
+                            )
                             imported++
                         } else {
                             // 跳过：不导入
                             skipped++
                         }
                     } else {
-                        // 新事件：直接插入
-                        eventDao.insertEvent(event)
+                        // 新事件：使用 upsertEventWithReminder 插入并设置提醒
+                        upsertEventWithReminder(
+                            event = event,
+                            reminderMinutes = event.reminderMinutes,
+                            repeatCount = 0 // 导入时不处理重复
+                        )
                         imported++
                     }
                 } catch (e: Exception) {

@@ -29,6 +29,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import com.example.calendar.data.ImportResult
 import com.example.calendar.util.formatDate
 import com.example.calendar.util.formatTime
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * 导入确认对话框
@@ -368,7 +370,7 @@ fun DateRangePickerDialog(
     visible: Boolean,
     startDate: LocalDate,
     endDate: LocalDate,
-    eventsCount: Int,
+    allEvents: List<Event>,
     onStartDateChange: (LocalDate) -> Unit,
     onEndDateChange: (LocalDate) -> Unit,
     onConfirm: () -> Unit,
@@ -377,6 +379,24 @@ fun DateRangePickerDialog(
     if (visible) {
         var tempStartDate by remember { mutableStateOf(startDate) }
         var tempEndDate by remember { mutableStateOf(endDate) }
+        
+        // 当对话框打开或外部日期变化时，重置临时日期
+        LaunchedEffect(visible, startDate, endDate) {
+            if (visible) {
+                tempStartDate = startDate
+                tempEndDate = endDate
+            }
+        }
+        
+        // 基于临时日期范围实时计算事件数量
+        val eventsCount = remember(tempStartDate, tempEndDate, allEvents) {
+            val systemZoneId = ZoneId.systemDefault()
+            val startTime = tempStartDate.atStartOfDay(systemZoneId).toInstant().toEpochMilli()
+            val endTime = tempEndDate.plusDays(1).atStartOfDay(systemZoneId).toInstant().toEpochMilli()
+            allEvents.count { event ->
+                event.dtStart >= startTime && event.dtStart < endTime
+            }
+        }
 
         AlertDialog(
             onDismissRequest = onDismiss,

@@ -39,6 +39,7 @@ fun CalendarScreen(
     onCityChanged: (() -> Unit)? = null, // 城市切换后的回调
     contentPadding: PaddingValues
 ) {
+    // 视图顺序：月、周、日（从左到右）
     val tabs = listOf(
         CalendarViewMode.MONTH to "月",
         CalendarViewMode.WEEK to "周",
@@ -46,6 +47,9 @@ fun CalendarScreen(
     )
 
     val selectedIndex = tabs.indexOfFirst { it.first == uiState.viewMode }.coerceAtLeast(0)
+    
+    // 获取视图在tabs列表中的索引（用于动画方向判断）
+    fun getViewIndex(mode: CalendarViewMode): Int = tabs.indexOfFirst { it.first == mode }.coerceAtLeast(0)
 
     Column(
         modifier = Modifier
@@ -66,12 +70,17 @@ fun CalendarScreen(
             targetState = uiState.viewMode,
             transitionSpec = {
                 // 标签顺序：月(0) -> 周(1) -> 日(2)，从左到右
-                // 切换到右侧标签（ordinal 增大）：新视图从右边进入，旧视图向左滑出
-                // 切换到左侧标签（ordinal 减小）：新视图从左边进入，旧视图向右滑出
-                val slideDirection = if (targetState.ordinal > initialState.ordinal) {
-                    -1 // 切换到右侧：新视图从右边进入（initialOffsetX = -it）
+                // 切换到下一个视图（targetIndex > currentIndex）：新视图从右边进入，旧视图向左滑出
+                // 切换到上一个视图（targetIndex < currentIndex）：新视图从左边进入，旧视图向右滑出
+                // 注意：根据实际效果调整了方向，确保向右切换时新视图从右边进入
+                val currentIndex = getViewIndex(initialState)
+                val targetIndex = getViewIndex(targetState)
+                // 根据用户反馈，切换到下一个视图时应该从右边进入
+                // 如果当前效果是从左边进入，需要反转方向
+                val slideDirection = if (targetIndex > currentIndex) {
+                    1 // 切换到下一个：新视图从右边进入，旧视图向左滑出
                 } else {
-                    1 // 切换到左侧：新视图从左边进入（initialOffsetX = it）
+                    -1 // 切换到上一个：新视图从左边进入，旧视图向右滑出
                 }
                 (fadeIn(animationSpec = tween(300)) +
                         slideInHorizontally(
@@ -143,7 +152,8 @@ fun CalendarScreen(
 }
 
 /**
- * 为日/周/月视图添加左右滑动切换能力，按 tabs 顺序切换。
+ * 为月/周/日视图添加左右滑动切换能力，按 tabs 顺序切换。
+ * 滑动逻辑：向左滑动切换到下一个视图，向右滑动切换到上一个视图。
  */
 private fun Modifier.addViewModeSwipe(
     currentMode: CalendarViewMode,
@@ -168,13 +178,13 @@ private fun Modifier.addViewModeSwipe(
             onDragEnd = {
                 val currentIndex = modes.indexOf(currentMode).coerceAtLeast(0)
                 when {
-                    // 向左滑：切换到左侧（前一个）Tab
-                    totalDrag <= -thresholdPx && currentIndex > 0 -> {
-                        onModeChange(modes[currentIndex - 1])
-                    }
-                    // 向右滑：切换到右侧（后一个）Tab
-                    totalDrag >= thresholdPx && currentIndex < modes.lastIndex -> {
+                    // 向左滑动：向右切换页面（下一个）
+                    totalDrag <= -thresholdPx && currentIndex < modes.lastIndex -> {
                         onModeChange(modes[currentIndex + 1])
+                    }
+                    // 向右滑动：向左切换页面（上一个）
+                    totalDrag >= thresholdPx && currentIndex > 0 -> {
+                        onModeChange(modes[currentIndex - 1])
                     }
                 }
                 totalDrag = 0f

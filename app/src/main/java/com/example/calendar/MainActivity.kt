@@ -50,6 +50,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -136,6 +137,16 @@ class MainActivity : ComponentActivity() {
                 val snackbarHostState = remember { SnackbarHostState() }
                 val scope = rememberCoroutineScope()
                 val context = LocalContext.current
+
+                // 监听从订阅页面返回主页面，刷新订阅数据
+                val previousShowSubscriptionScreen = remember { mutableStateOf(false) }
+                LaunchedEffect(showSubscriptionScreen) {
+                    // 当从订阅页面（true）返回主页面（false）时，刷新订阅数据
+                    if (previousShowSubscriptionScreen.value && !showSubscriptionScreen) {
+                        vm.refreshSubscriptionDataIfNeeded()
+                    }
+                    previousShowSubscriptionScreen.value = showSubscriptionScreen
+                }
 
                 // 文件选择器（用于导入）
                 val filePickerLauncher = rememberLauncherForActivityResult(
@@ -588,26 +599,25 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // 日期范围选择对话框
-                    val dateRangeEventsCount = remember(dateRangeStart, dateRangeEnd, allEvents) {
-                        val systemZoneId = java.time.ZoneId.systemDefault()
-                        val startTime = dateRangeStart.atStartOfDay(systemZoneId).toInstant().toEpochMilli()
-                        val endTime = dateRangeEnd.plusDays(1).atStartOfDay(systemZoneId).toInstant().toEpochMilli()
-                        allEvents.count { event ->
-                            event.dtStart >= startTime && event.dtStart < endTime
-                        }
-                    }
-                    
                     DateRangePickerDialog(
                         visible = showDateRangePickerDialog,
                         startDate = dateRangeStart,
                         endDate = dateRangeEnd,
-                        eventsCount = dateRangeEventsCount,
+                        allEvents = allEvents,
                         onStartDateChange = { setDateRangeStart(it) },
                         onEndDateChange = { setDateRangeEnd(it) },
                         onConfirm = {
+                            // 基于最终选择的日期范围计算事件数量
+                            val systemZoneId = java.time.ZoneId.systemDefault()
+                            val startTime = dateRangeStart.atStartOfDay(systemZoneId).toInstant().toEpochMilli()
+                            val endTime = dateRangeEnd.plusDays(1).atStartOfDay(systemZoneId).toInstant().toEpochMilli()
+                            val finalEventsCount = allEvents.count { event ->
+                                event.dtStart >= startTime && event.dtStart < endTime
+                            }
+                            
                             val icsContent = vm.exportEventsAsIcs(dateRangeStart, dateRangeEnd)
                             setExportIcsText(icsContent)
-                            setExportEventCount(dateRangeEventsCount)
+                            setExportEventCount(finalEventsCount)
                             setExportDateRange("${dateRangeStart.formatDate()} 至 ${dateRangeEnd.formatDate()}")
                             setShowDateRangePickerDialog(false)
                             setExportDialogVisible(true)
@@ -718,7 +728,9 @@ class SubscriptionViewModelFactory(
     }
 }
 
-private const val REMINDER_CHANNEL_ID = "calendar_reminders"
+// 使用 ReminderReceiver 中定义的渠道 ID 常量
+private val REMINDER_CHANNEL_ID = com.example.calendar.reminder.ReminderReceiver.REMINDER_CHANNEL_ID
+private val REMINDER_SILENT_CHANNEL_ID = com.example.calendar.reminder.ReminderReceiver.REMINDER_SILENT_CHANNEL_ID
 
 /**
  * 导航图标按钮组件
@@ -825,38 +837,47 @@ private fun CalendarTopBarTitle(
 }
 
 private fun MainActivity.createNotificationChannel() {
-    val name = "日程提醒"
-    val descriptionText = "日程提醒通知渠道"
-    val importance = NotificationManager.IMPORTANCE_HIGH
     val notificationManager: NotificationManager =
         getSystemService(NotificationManager::class.java)
     
-    // 如果渠道已存在，先删除它（因为渠道的声音设置一旦创建就无法通过代码修改）
-    // 这样可以确保新创建的渠道有正确的声音设置
+    // Android 8.0+ 需要创建通知渠道
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        // 如果渠道已存在，先删除它们（因为渠道的声音设置一旦创建就无法通过代码修改）
+        // 这样可以确保新创建的渠道有正确的声音设置
         val existingChannel = notificationManager.getNotificationChannel(REMINDER_CHANNEL_ID)
         if (existingChannel != null) {
             notificationManager.deleteNotificationChannel(REMINDER_CHANNEL_ID)
         }
+        val existingSilentChannel = notificationManager.getNotificationChannel(REMINDER_SILENT_CHANNEL_ID)
+        if (existingSilentChannel != null) {
+            notificationManager.deleteNotificationChannel(REMINDER_SILENT_CHANNEL_ID)
+        }
+        
+        // 创建有响铃的提醒渠道（启用声音、震动、灯光）
+        val channel = NotificationChannel(REMINDER_CHANNEL_ID, "日程提醒（响铃）", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "带声音、震动和灯光的日程提醒"
+            enableVibration(true)
+            enableLights(true)
+            val defaultSoundUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+            setSound(defaultSoundUri, android.media.AudioAttributes.Builder()
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                .build())
+            vibrationPattern = longArrayOf(0, 250, 250, 250)
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            setBypassDnd(false)
+        }
+        notificationManager.createNotificationChannel(channel)
+        
+        // 创建静音提醒渠道（只有灯光，无声音无震动）
+        val silentChannel = NotificationChannel(REMINDER_SILENT_CHANNEL_ID, "日程提醒（静音）", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "只有灯光的静音日程提醒"
+            enableVibration(false) // 禁用震动
+            enableLights(true) // 启用灯光
+            setSound(null, null) // 禁用声音
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            setBypassDnd(false)
+        }
+        notificationManager.createNotificationChannel(silentChannel)
     }
-    
-    val channel = NotificationChannel(REMINDER_CHANNEL_ID, name, importance).apply {
-        description = descriptionText
-        // 启用声音和震动，确保响铃提醒可以正常工作
-        enableVibration(true)
-        enableLights(true)
-        // 设置默认通知声音（使用系统默认通知音）
-        val defaultSoundUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
-        setSound(defaultSoundUri, android.media.AudioAttributes.Builder()
-            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
-            .build())
-        // 设置震动模式
-        vibrationPattern = longArrayOf(0, 250, 250, 250)
-        // 设置锁屏显示方式
-        lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
-        // 设置绕过免打扰模式（如果需要）
-        setBypassDnd(false)
-    }
-    notificationManager.createNotificationChannel(channel)
 }

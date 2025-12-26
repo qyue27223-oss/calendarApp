@@ -244,6 +244,50 @@ class CalendarViewModel(
         }
     }
 
+    /**
+     * 强制刷新当前选中日期的订阅数据
+     * 用于从订阅页面返回主页面时，确保新订阅的数据能够立即显示
+     */
+    fun refreshSubscriptionDataIfNeeded() {
+        val subscriptionRepository = subscriptionRepository ?: return
+        val selectedDate = _uiState.value.selectedDate
+        val targetMonth = YearMonth.from(selectedDate)
+        
+        // 清除该月份的缓存，强制重新检查
+        lastSyncedMonth = null
+        
+        // 如果该月份正在同步中，跳过
+        if (syncingMonths.contains(targetMonth)) {
+            return
+        }
+        
+        viewModelScope.launch {
+            val subscriptions = subscriptionRepository.getAllSubscriptions()
+                .firstOrNull() ?: emptyList()
+            
+            val huangliSubscriptions = subscriptions.filter { it.enabled && it.type == SubscriptionType.HUANGLI }
+            if (huangliSubscriptions.isNotEmpty()) {
+                // 标记该月份正在同步
+                syncingMonths.add(targetMonth)
+                try {
+                    huangliSubscriptions.forEach { subscription ->
+                        // 检查该月份是否有完整的数据
+                        val hasCompleteData = subscriptionRepository.hasCompleteMonthData(subscription.id, selectedDate)
+                        if (!hasCompleteData) {
+                            // 如果数据不完整，同步该月份
+                            subscriptionRepository.syncHuangliSubscriptionForMonth(subscription, selectedDate)
+                        }
+                    }
+                    // 无论数据是否完整，都标记该月份已检查
+                    lastSyncedMonth = targetMonth
+                } finally {
+                    // 同步完成后，移除标记
+                    syncingMonths.remove(targetMonth)
+                }
+            }
+        }
+    }
+
     fun saveEvent(event: Event, reminderMinutes: Int?, repeatCount: Int = 0) {
         viewModelScope.launch {
             try {

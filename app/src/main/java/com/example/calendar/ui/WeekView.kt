@@ -44,7 +44,7 @@ fun WeekView(
                 .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            val weekDays = listOf("一", "二", "三", "四", "五", "六", "日")
+            val weekDays = listOf("日", "一", "二", "三", "四", "五", "六")
             weekDays.forEach { label ->
                 Text(
                     text = label,
