@@ -30,11 +30,6 @@ class SubscriptionRepository(
 
     fun getAllSubscriptions(): Flow<List<Subscription>> = subscriptionDao.getAllSubscriptions()
 
-    fun getSubscriptionById(id: Long): Flow<Subscription?> = subscriptionDao.getSubscriptionById(id)
-
-    fun getEnabledSubscriptionsByType(type: SubscriptionType): Flow<List<Subscription>> =
-        subscriptionDao.getEnabledSubscriptionsByType(type)
-
     suspend fun insertSubscription(subscription: Subscription): Long =
         subscriptionDao.insertSubscription(subscription)
 
@@ -49,9 +44,6 @@ class SubscriptionRepository(
     }
 
     // ========== 订阅事件管理 ==========
-
-    fun getEventsBySubscription(subscriptionId: Long): Flow<List<SubscriptionEvent>> =
-        subscriptionEventDao.getEventsBySubscription(subscriptionId)
 
     fun getEventsBetween(startDate: Long, endDate: Long, subscriptionId: Long): Flow<List<SubscriptionEvent>> =
         subscriptionEventDao.getEventsBetween(startDate, endDate, subscriptionId)
@@ -72,7 +64,7 @@ class SubscriptionRepository(
         return try {
             when (subscription.type) {
                 SubscriptionType.WEATHER -> syncWeatherSubscription(subscription)
-                SubscriptionType.HUANGLI -> syncHuangliSubscription(subscription)
+                SubscriptionType.HUANGLI -> syncHuangliSubscriptionForDate(subscription, null)
             }
         } catch (e: Exception) {
             SyncResult(
@@ -218,77 +210,62 @@ class SubscriptionRepository(
     }
 
     /**
-     * 同步指定月份的黄历订阅数据
+     * 同步指定日期的黄历订阅数据（按天同步）
      * @param subscription 订阅信息
-     * @param targetMonth 目标月份，如果为null则同步当前月份
+     * @param targetDate 目标日期，如果为null则使用当前日期
+     * @return SyncResult 同步结果
      */
-    suspend fun syncHuangliSubscriptionForMonth(
+    suspend fun syncHuangliSubscriptionForDate(
         subscription: Subscription,
-        targetMonth: LocalDate? = null
+        targetDate: LocalDate? = null
     ): SyncResult {
         try {
-            val events = mutableListOf<SubscriptionEvent>()
-            val targetDate = targetMonth ?: LocalDate.now()
-            
-            // 获取目标月份的第一天和最后一天
-            val firstDayOfMonth = targetDate.withDayOfMonth(1)
-            val lastDayOfMonth = targetDate.withDayOfMonth(targetDate.lengthOfMonth())
+            val date = targetDate ?: LocalDate.now()
+            val dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
             
             // API密钥
             val apiKey = "1ad714beb42ded25b15a429d6ba64168"
-            val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
             
-            // 遍历目标月份的所有天数
-            var currentDate = firstDayOfMonth
-            while (!currentDate.isAfter(lastDayOfMonth)) {
-                val dateStr = currentDate.format(dateFormatter)
+            // 请求指定日期的黄历数据
+            val response = huangliApiService.getHuangli(apiKey, dateStr)
+            
+            // error_code为0表示成功
+            if (response.errorCode == 0 && response.result != null) {
+                val dateMillis = date.atStartOfDay(ZoneId.systemDefault())
+                    .toInstant().toEpochMilli()
+                val content = gson.toJson(response.result)
                 
-                try {
-                    val response = huangliApiService.getHuangli(apiKey, dateStr)
-                    
-                    // error_code为0表示成功
-                    if (response.errorCode == 0 && response.result != null) {
-                        val dateMillis = currentDate.atStartOfDay(ZoneId.systemDefault())
-                            .toInstant().toEpochMilli()
-                        val content = gson.toJson(response.result)
-                        events.add(
-                            SubscriptionEvent(
-                                subscriptionId = subscription.id,
-                                date = dateMillis,
-                                content = content
-                            )
-                        )
-                    }
-                } catch (e: Exception) {
-                    // 单个日期失败不影响其他日期
-                }
+                val event = SubscriptionEvent(
+                    subscriptionId = subscription.id,
+                    date = dateMillis,
+                    content = content
+                )
                 
-                // 移动到下一天
-                currentDate = currentDate.plusDays(1)
+                // 使用 INSERT OR REPLACE 策略，如果数据已存在则更新
+                subscriptionEventDao.insertEvent(event)
+                
+                // 更新订阅的最后更新时间
+                subscriptionDao.updateSubscription(
+                    subscription.copy(lastUpdateTime = System.currentTimeMillis())
+                )
+                
+                return SyncResult(
+                    success = true,
+                    message = "同步成功",
+                    updatedCount = 1
+                )
+            } else {
+                return SyncResult(
+                    success = false,
+                    message = "获取黄历数据失败: ${response.reason}",
+                    updatedCount = 0
+                )
             }
-
-            // 只删除目标月份的数据，保留其他月份的数据（支持跨月查看）
-            val startDateMillis = firstDayOfMonth.atStartOfDay(ZoneId.systemDefault())
-                .toInstant().toEpochMilli()
-            val endDateMillis = lastDayOfMonth.plusDays(1).atStartOfDay(ZoneId.systemDefault())
-                .toInstant().toEpochMilli()
-            subscriptionEventDao.deleteBySubscriptionIdAndDateRange(
-                subscription.id,
-                startDateMillis,
-                endDateMillis
-            )
-            // 使用 INSERT OR REPLACE 策略，如果数据已存在则更新
-            subscriptionEventDao.insertEvents(events)
-
-            // 更新订阅的最后更新时间
-            subscriptionDao.updateSubscription(
-                subscription.copy(lastUpdateTime = System.currentTimeMillis())
-            )
-
+        } catch (e: HttpException) {
             return SyncResult(
-                success = true,
-                message = "同步成功",
-                updatedCount = events.size
+                success = false,
+                message = "同步失败: HTTP ${e.code()}",
+                updatedCount = 0
             )
         } catch (e: Exception) {
             return SyncResult(
@@ -300,49 +277,46 @@ class SubscriptionRepository(
     }
 
     /**
-     * 同步黄历订阅
-     * 获取当前月份的所有天数的黄历信息
+     * 智能同步黄历订阅（先检查数据是否存在，不存在才同步）
+     * @param subscription 订阅信息
+     * @param targetDate 目标日期，如果为null则使用当前日期
+     * @return SyncResult 同步结果
      */
-    private suspend fun syncHuangliSubscription(subscription: Subscription): SyncResult {
-        return syncHuangliSubscriptionForMonth(subscription, null)
+    suspend fun syncHuangliSubscriptionIfNeeded(
+        subscription: Subscription,
+        targetDate: LocalDate? = null
+    ): SyncResult {
+        val date = targetDate ?: LocalDate.now()
+        // 检查该日期是否有数据
+        val hasData = hasDateData(subscription.id, date)
+        if (hasData) {
+            // 数据已存在，直接返回成功，不进行API请求
+            return SyncResult(
+                success = true,
+                message = "数据已存在，无需同步",
+                updatedCount = 0
+            )
+        }
+        // 数据不存在，进行同步
+        return syncHuangliSubscriptionForDate(subscription, date)
     }
 
     /**
-     * 检查指定月份的数据是否存在
-     */
-    suspend fun hasMonthData(subscriptionId: Long, yearMonth: LocalDate): Boolean {
-        val firstDayOfMonth = yearMonth.withDayOfMonth(1)
-        val lastDayOfMonth = yearMonth.withDayOfMonth(yearMonth.lengthOfMonth())
-        val startDateMillis = firstDayOfMonth.atStartOfDay(ZoneId.systemDefault())
-            .toInstant().toEpochMilli()
-        val endDateMillis = lastDayOfMonth.plusDays(1).atStartOfDay(ZoneId.systemDefault())
-            .toInstant().toEpochMilli()
-        val events = subscriptionEventDao.getEventsBetween(startDateMillis, endDateMillis, subscriptionId)
-            .firstOrNull() ?: emptyList()
-        return events.isNotEmpty()
-    }
-
-    /**
-     * 检查指定月份的数据是否完整（所有天数都有数据）
+     * 检查指定日期的数据是否存在
      * @param subscriptionId 订阅ID
-     * @param yearMonth 目标月份
-     * @return true 如果该月份所有天数都有数据，false 否则
+     * @param date 目标日期
+     * @return true 如果该日期有数据，false 否则
      */
-    suspend fun hasCompleteMonthData(subscriptionId: Long, yearMonth: LocalDate): Boolean {
-        val firstDayOfMonth = yearMonth.withDayOfMonth(1)
-        val lastDayOfMonth = yearMonth.withDayOfMonth(yearMonth.lengthOfMonth())
-        val expectedDays = yearMonth.lengthOfMonth() // 该月的天数
-        
-        val startDateMillis = firstDayOfMonth.atStartOfDay(ZoneId.systemDefault())
+    suspend fun hasDateData(subscriptionId: Long, date: LocalDate): Boolean {
+        val dateMillis = date.atStartOfDay(ZoneId.systemDefault())
             .toInstant().toEpochMilli()
-        val endDateMillis = lastDayOfMonth.plusDays(1).atStartOfDay(ZoneId.systemDefault())
-            .toInstant().toEpochMilli()
+        val startOfDay = dateMillis
+        val endOfDay = dateMillis + 24 * 60 * 60 * 1000L // 加一天
         
-        val events = subscriptionEventDao.getEventsBetween(startDateMillis, endDateMillis, subscriptionId)
+        val events = subscriptionEventDao.getEventsByDate(startOfDay, endOfDay, subscriptionId)
             .firstOrNull() ?: emptyList()
         
-        // 如果事件数量少于该月的天数，说明数据不完整
-        return events.size >= expectedDays
+        return events.isNotEmpty()
     }
 
     /**
@@ -357,18 +331,6 @@ class SubscriptionRepository(
         val now = System.currentTimeMillis()
         val syncIntervalMillis = syncIntervalHours * 60 * 60 * 1000
         return (now - subscription.lastUpdateTime) >= syncIntervalMillis
-    }
-
-    /**
-     * 清理过期的订阅事件（保留最近30天）
-     */
-    suspend fun cleanupOldEvents() {
-        val thirtyDaysAgo = LocalDate.now()
-            .minusDays(30)
-            .atStartOfDay(ZoneId.systemDefault())
-            .toInstant()
-            .toEpochMilli()
-        subscriptionEventDao.deleteEventsBefore(thirtyDaysAgo)
     }
 }
 

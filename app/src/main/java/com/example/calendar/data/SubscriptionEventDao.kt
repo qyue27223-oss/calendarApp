@@ -9,9 +9,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SubscriptionEventDao {
-    @Query("SELECT * FROM subscription_events WHERE subscriptionId = :subscriptionId ORDER BY date ASC")
-    fun getEventsBySubscription(subscriptionId: Long): Flow<List<SubscriptionEvent>>
-
     @Query(
         """
         SELECT * FROM subscription_events 
@@ -29,9 +26,6 @@ interface SubscriptionEventDao {
         """
     )
     fun getEventsByDate(startOfDay: Long, endOfDay: Long, subscriptionId: Long): Flow<List<SubscriptionEvent>>
-    
-    @Query("SELECT * FROM subscription_events WHERE date = :date")
-    fun getEventsByExactDate(date: Long): Flow<List<SubscriptionEvent>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvent(event: SubscriptionEvent): Long
@@ -41,20 +35,6 @@ interface SubscriptionEventDao {
 
     @Query("DELETE FROM subscription_events WHERE subscriptionId = :subscriptionId")
     suspend fun deleteBySubscriptionId(subscriptionId: Long)
-
-    @Query(
-        """
-        DELETE FROM subscription_events 
-        WHERE subscriptionId = :subscriptionId 
-        AND date >= :startDate 
-        AND date < :endDate
-        """
-    )
-    suspend fun deleteBySubscriptionIdAndDateRange(
-        subscriptionId: Long,
-        startDate: Long,
-        endDate: Long
-    )
 
     @Query("DELETE FROM subscription_events WHERE date < :beforeDate")
     suspend fun deleteEventsBefore(beforeDate: Long)

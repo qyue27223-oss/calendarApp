@@ -33,13 +33,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.calendar.data.Subscription
 import com.example.calendar.data.SubscriptionType
+import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubscriptionScreen(
     viewModel: SubscriptionViewModel,
     onBack: () -> Unit,
-    contentPadding: PaddingValues = PaddingValues(0.dp)
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    currentSelectedDate: LocalDate = LocalDate.now() // 当前选中的日期，用于检查该月份的数据
 ) {
     val subscriptions by viewModel.subscriptions.collectAsState()
     
@@ -89,6 +91,7 @@ fun SubscriptionScreen(
                 onSubscribe = {
                     if (existingSubscription == null) {
                         // 创建新订阅
+                        // 对于黄历订阅，传递当前选中日期，用于检查该日期的数据是否存在
                         viewModel.insertSubscription(
                             Subscription(
                                 type = service.type,
@@ -96,11 +99,16 @@ fun SubscriptionScreen(
                                 // 注意：url 字段当前未被使用，同步逻辑直接调用 API 服务
                                 url = "http://example.com/${service.type.name.lowercase()}",
                                 enabled = true
-                            )
+                            ),
+                            targetDate = if (service.type == SubscriptionType.HUANGLI) currentSelectedDate else null
                         )
                     } else {
                         // 启用订阅
-                        viewModel.updateSubscription(existingSubscription.copy(enabled = true))
+                        // 对于黄历订阅，传递当前选中日期，用于检查该日期的数据是否存在
+                        viewModel.updateSubscription(
+                            existingSubscription.copy(enabled = true),
+                            targetDate = if (service.type == SubscriptionType.HUANGLI) currentSelectedDate else null
+                        )
                     }
                 },
                 onUnsubscribe = {

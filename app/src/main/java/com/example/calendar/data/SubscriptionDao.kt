@@ -13,12 +13,6 @@ interface SubscriptionDao {
     @Query("SELECT * FROM subscriptions ORDER BY type, name")
     fun getAllSubscriptions(): Flow<List<Subscription>>
 
-    @Query("SELECT * FROM subscriptions WHERE id = :id")
-    fun getSubscriptionById(id: Long): Flow<Subscription?>
-
-    @Query("SELECT * FROM subscriptions WHERE type = :type AND enabled = 1")
-    fun getEnabledSubscriptionsByType(type: SubscriptionType): Flow<List<Subscription>>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubscription(subscription: Subscription): Long
 

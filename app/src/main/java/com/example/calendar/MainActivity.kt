@@ -2,8 +2,6 @@
 
 package com.example.calendar
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -90,8 +88,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        createNotificationChannel()
 
         // 从 Application 统一获取依赖
         val app = application as CalendarApp
@@ -567,7 +563,8 @@ class MainActivity : ComponentActivity() {
                             SubscriptionScreen(
                                 viewModel = subscriptionVm,
                                 onBack = { setShowSubscriptionScreen(false) },
-                                contentPadding = innerPadding
+                                contentPadding = innerPadding,
+                                currentSelectedDate = uiState.selectedDate // 传递当前选中的日期
                             )
                         } else {
                             // 日历界面
@@ -746,10 +743,6 @@ class SubscriptionViewModelFactory(
     }
 }
 
-// 使用 ReminderReceiver 中定义的渠道 ID 常量
-private val REMINDER_CHANNEL_ID = com.example.calendar.reminder.ReminderReceiver.REMINDER_CHANNEL_ID
-private val REMINDER_SILENT_CHANNEL_ID = com.example.calendar.reminder.ReminderReceiver.REMINDER_SILENT_CHANNEL_ID
-
 /**
  * 导航图标按钮组件
  */
@@ -851,47 +844,5 @@ private fun CalendarTopBarTitle(
                 CalendarViewMode.DAY -> "下一天"
             }
         )
-    }
-}
-
-private fun MainActivity.createNotificationChannel() {
-    val notificationManager: NotificationManager =
-        getSystemService(NotificationManager::class.java)
-    
-    // Android 8.0+ 需要创建通知渠道
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-        // 如果渠道已存在，先删除它们（因为渠道的声音设置一旦创建就无法通过代码修改）
-        // 这样可以确保新创建的渠道有正确的声音设置
-        val existingChannel = notificationManager.getNotificationChannel(REMINDER_CHANNEL_ID)
-        if (existingChannel != null) {
-            notificationManager.deleteNotificationChannel(REMINDER_CHANNEL_ID)
-        }
-        val existingSilentChannel = notificationManager.getNotificationChannel(REMINDER_SILENT_CHANNEL_ID)
-        if (existingSilentChannel != null) {
-            notificationManager.deleteNotificationChannel(REMINDER_SILENT_CHANNEL_ID)
-        }
-        
-        // 创建有响铃的提醒渠道（启用声音）
-        val channel = NotificationChannel(REMINDER_CHANNEL_ID, "日程提醒（响铃）", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "带声音的日程提醒"
-            // 使用系统自带的通知铃声
-            val defaultSoundUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
-            setSound(defaultSoundUri, android.media.AudioAttributes.Builder()
-                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION) // 使用通知类型
-                .build())
-            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
-            setBypassDnd(false)
-        }
-        notificationManager.createNotificationChannel(channel)
-        
-        // 创建静音提醒渠道（无声音）
-        val silentChannel = NotificationChannel(REMINDER_SILENT_CHANNEL_ID, "日程提醒（静音）", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "静音日程提醒"
-            setSound(null, null) // 禁用声音
-            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
-            setBypassDnd(false)
-        }
-        notificationManager.createNotificationChannel(silentChannel)
     }
 }

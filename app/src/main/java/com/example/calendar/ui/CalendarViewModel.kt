@@ -21,10 +21,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.time.LocalDate
-import java.time.YearMonth
 
 enum class CalendarViewMode {
     MONTH, WEEK, DAY
@@ -44,10 +44,8 @@ class CalendarViewModel(
     private val subscriptionRepository: SubscriptionRepository? = null
 ) : ViewModel() {
 
-    // 记录上次检查同步的月份，避免重复检查
-    private var lastSyncedMonth: java.time.YearMonth? = null
-    // 记录正在同步的月份，避免并发重复请求
-    private val syncingMonths = mutableSetOf<java.time.YearMonth>()
+    // 记录正在同步的日期，避免并发重复请求
+    private val syncingDates = mutableSetOf<LocalDate>()
 
     private val _uiState = MutableStateFlow(CalendarUiState())
     val uiState: StateFlow<CalendarUiState> = _uiState.asStateFlow()
@@ -101,6 +99,7 @@ class CalendarViewModel(
 
     /**
      * 通用的订阅事件获取逻辑，减少代码重复
+     * 优化：使用 distinctUntilChanged 确保只在 selectedDate 真正改变时才重新查询
      */
     private fun getSubscriptionEventsFlow(
         getEventFlow: (LocalDate) -> (com.example.calendar.data.Subscription) -> Flow<List<SubscriptionEvent>>
@@ -108,13 +107,13 @@ class CalendarViewModel(
         return if (subscriptionRepository != null) {
             combine(
                 subscriptionRepository.getAllSubscriptions(),
-                uiState
-            ) { subscriptions: List<com.example.calendar.data.Subscription>, state: CalendarUiState ->
+                uiState.map { it.selectedDate }.distinctUntilChanged() // 只在日期真正改变时才触发
+            ) { subscriptions: List<com.example.calendar.data.Subscription>, selectedDate: LocalDate ->
                 val enabledSubscriptions = subscriptions.filter { it.enabled }
                 if (enabledSubscriptions.isEmpty()) {
                     flowOf<List<Pair<SubscriptionEvent, SubscriptionType>>>(emptyList())
                 } else {
-                    val eventFlowGetter = getEventFlow(state.selectedDate)
+                    val eventFlowGetter = getEventFlow(selectedDate)
                     val eventFlows: List<Flow<List<Pair<SubscriptionEvent, SubscriptionType>>>> = 
                         enabledSubscriptions.map { subscription ->
                             eventFlowGetter(subscription)
@@ -164,14 +163,14 @@ class CalendarViewModel(
 
     fun selectDate(date: LocalDate) {
         _uiState.value = _uiState.value.copy(selectedDate = date)
-        // 检查是否需要同步该月份的数据
-        checkAndSyncMonthIfNeeded(date)
+        // 检查是否需要同步该日期的数据
+        checkAndSyncDateIfNeeded(date)
     }
 
     fun goToToday() {
         val today = LocalDate.now()
         _uiState.value = _uiState.value.copy(selectedDate = today)
-        checkAndSyncMonthIfNeeded(today)
+        checkAndSyncDateIfNeeded(today)
     }
 
     fun goToPrevious() {
@@ -182,10 +181,8 @@ class CalendarViewModel(
             CalendarViewMode.DAY -> state.selectedDate.minusDays(1)
         }
         _uiState.value = state.copy(selectedDate = newDate)
-        // 如果是月份视图，检查是否需要同步该月份的数据
-        if (state.viewMode == CalendarViewMode.MONTH) {
-            checkAndSyncMonthIfNeeded(newDate)
-        }
+        // 检查是否需要同步该日期的数据
+        checkAndSyncDateIfNeeded(newDate)
     }
 
     fun goToNext() {
@@ -196,30 +193,20 @@ class CalendarViewModel(
             CalendarViewMode.DAY -> state.selectedDate.plusDays(1)
         }
         _uiState.value = state.copy(selectedDate = newDate)
-        // 如果是月份视图，检查是否需要同步该月份的数据
-        if (state.viewMode == CalendarViewMode.MONTH) {
-            checkAndSyncMonthIfNeeded(newDate)
-        }
+        // 检查是否需要同步该日期的数据
+        checkAndSyncDateIfNeeded(newDate)
     }
 
     /**
-     * 检查并同步指定月份的数据（如果不存在或不完整）
+     * 检查并同步指定日期的数据（如果不存在）
      */
-    private fun checkAndSyncMonthIfNeeded(date: LocalDate) {
+    private fun checkAndSyncDateIfNeeded(date: LocalDate) {
         val subscriptionRepository = subscriptionRepository ?: return
-        val targetMonth = YearMonth.from(date)
         
-        // 如果已经检查过该月份，跳过
-        if (lastSyncedMonth == targetMonth) {
+        // 如果该日期正在同步中，跳过
+        if (syncingDates.contains(date)) {
             return
         }
-        
-        // 如果该月份正在同步中，跳过
-        if (syncingMonths.contains(targetMonth)) {
-            return
-        }
-        
-        lastSyncedMonth = targetMonth
 
         viewModelScope.launch {
             val subscriptions = subscriptionRepository.getAllSubscriptions()
@@ -227,18 +214,14 @@ class CalendarViewModel(
             
             subscriptions.filter { it.enabled && it.type == SubscriptionType.HUANGLI }
                 .forEach { subscription ->
-                    // 检查该月份是否有完整的数据（所有天数都有数据）
-                    val hasCompleteData = subscriptionRepository.hasCompleteMonthData(subscription.id, date)
-                    if (!hasCompleteData) {
-                        // 标记该月份正在同步
-                        syncingMonths.add(targetMonth)
-                        try {
-                            // 如果数据不完整，同步该月份
-                            subscriptionRepository.syncHuangliSubscriptionForMonth(subscription, date)
-                        } finally {
-                            // 同步完成后，移除标记
-                            syncingMonths.remove(targetMonth)
-                        }
+                    // 标记该日期正在同步
+                    syncingDates.add(date)
+                    try {
+                        // 使用智能同步方法：先检查数据是否存在，不存在才同步
+                        subscriptionRepository.syncHuangliSubscriptionIfNeeded(subscription, date)
+                    } finally {
+                        // 同步完成后，移除标记
+                        syncingDates.remove(date)
                     }
                 }
         }
@@ -251,13 +234,9 @@ class CalendarViewModel(
     fun refreshSubscriptionDataIfNeeded() {
         val subscriptionRepository = subscriptionRepository ?: return
         val selectedDate = _uiState.value.selectedDate
-        val targetMonth = YearMonth.from(selectedDate)
         
-        // 清除该月份的缓存，强制重新检查
-        lastSyncedMonth = null
-        
-        // 如果该月份正在同步中，跳过
-        if (syncingMonths.contains(targetMonth)) {
+        // 如果该日期正在同步中，跳过
+        if (syncingDates.contains(selectedDate)) {
             return
         }
         
@@ -267,22 +246,16 @@ class CalendarViewModel(
             
             val huangliSubscriptions = subscriptions.filter { it.enabled && it.type == SubscriptionType.HUANGLI }
             if (huangliSubscriptions.isNotEmpty()) {
-                // 标记该月份正在同步
-                syncingMonths.add(targetMonth)
+                // 标记该日期正在同步
+                syncingDates.add(selectedDate)
                 try {
                     huangliSubscriptions.forEach { subscription ->
-                        // 检查该月份是否有完整的数据
-                        val hasCompleteData = subscriptionRepository.hasCompleteMonthData(subscription.id, selectedDate)
-                        if (!hasCompleteData) {
-                            // 如果数据不完整，同步该月份
-                            subscriptionRepository.syncHuangliSubscriptionForMonth(subscription, selectedDate)
-                        }
+                        // 使用智能同步方法：先检查数据是否存在，不存在才同步
+                        subscriptionRepository.syncHuangliSubscriptionIfNeeded(subscription, selectedDate)
                     }
-                    // 无论数据是否完整，都标记该月份已检查
-                    lastSyncedMonth = targetMonth
                 } finally {
                     // 同步完成后，移除标记
-                    syncingMonths.remove(targetMonth)
+                    syncingDates.remove(selectedDate)
                 }
             }
         }
